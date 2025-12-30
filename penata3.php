@@ -5,22 +5,100 @@ require_once 'db_connection.php';
 $pesan_sukses = "";
 $error_message = "";
 $signature_preview = "";
+$form_data = []; // Array untuk menampung data yang akan ditampilkan
 
-// Helper function
+// --- LOGIKA PENCARIAN DATA (GET) ---
+
+// 1. Ambil Parameter dari URL
+$url_regno = $_GET['regno'] ?? '';
+$url_nama  = $_GET['nama'] ?? '';
+$url_norm  = $_GET['no_rm'] ?? '';
+$url_tgl   = $_GET['tgl_lahir'] ?? '';
+
+// 2. Konversi Tanggal dari format URL (misal: 20 Juli 2001) ke format Database (Y-m-d)
+if (!empty($url_tgl)) {
+    // Mapping bulan Indonesia ke Inggris agar bisa diparsing strtotime
+    $bulan_indo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    $bulan_inggris = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    $tgl_bersih = str_ireplace($bulan_indo, $bulan_inggris, $url_tgl);
+    $timestamp = strtotime($tgl_bersih);
+    
+    // Jika berhasil diparsing, ubah ke format Y-m-d, jika tidak biarkan apa adanya (untuk input text biasa)
+    if ($timestamp) {
+        $url_tgl = date('Y-m-d', $timestamp);
+    }
+}
+
+// 3. Cek Database berdasarkan REGNO
+$found_in_db = false;
+if (!empty($url_regno)) {
+    try {
+        $stmt_check = $pdo->prepare("SELECT * FROM asesmen_pra_anestesi WHERE regno = :regno ORDER BY id DESC LIMIT 1");
+        $stmt_check->execute([':regno' => $url_regno]);
+        $data_db = $stmt_check->fetch(PDO::FETCH_ASSOC);
+
+        if ($data_db) {
+            $form_data = $data_db; // Pakai data dari Database
+            $found_in_db = true;
+            
+            // Load tanda tangan jika ada di database
+            if (!empty($data_db['signature_image'])) {
+                $signature_preview = $data_db['signature_image'];
+            }
+        }
+    } catch (PDOException $e) {
+        // Silent error
+    }
+}
+
+// 4. Jika Tidak Ada di DB, Pakai Data URL sebagai Default
+if (!$found_in_db) {
+    $form_data['regno'] = $url_regno;
+    $form_data['nama_pasien'] = $url_nama;
+    $form_data['no_rm'] = $url_norm;
+    $form_data['tgl_lahir'] = $url_tgl;
+}
+
+// --- FUNGSI HELPER UNTUK MENAMPILKAN DATA DI HTML ---
 function getValue($field) {
-    return isset($_POST[$field]) ? htmlspecialchars($_POST[$field]) : '';
+    global $form_data;
+    if (isset($_POST[$field])) {
+        return htmlspecialchars($_POST[$field]);
+    }
+    if (isset($form_data[$field])) {
+        return htmlspecialchars($form_data[$field]);
+    }
+    return '';
 }
 
 function getChecked($field, $val) {
-    return (isset($_POST[$field]) && $_POST[$field] === $val) ? 'checked' : '';
+    global $form_data;
+    // Cek POST dulu
+    if (isset($_POST[$field])) {
+        if (is_array($_POST[$field])) {
+            return in_array($val, $_POST[$field]) ? 'checked' : ''; 
+        }
+        return ($_POST[$field] == $val) ? 'checked' : '';
+    }
+    // Cek Data DB/URL
+    if (isset($form_data[$field])) {
+        return ($form_data[$field] == $val) ? 'checked' : '';
+    }
+    return '';
 }
 
+// --- LOGIKA SIMPAN DATA (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
-        // Ambil data TTD
-        $signature_image = $_POST['signature_image'] ?? '';
-        if (!empty($signature_image)) {
-            $signature_preview = $signature_image;
+        // Ambil data TTD baru jika ada
+        $signature_image_post = $_POST['signature_image'] ?? '';
+        
+        // Jika user tanda tangan baru, pakai itu. Jika tidak, pertahankan yang lama (jika ada)
+        if (!empty($signature_image_post)) {
+            $signature_preview = $signature_image_post;
+        } elseif (isset($form_data['signature_image'])) {
+             $signature_image_post = $form_data['signature_image']; 
         }
 
         // Query INSERT
@@ -135,7 +213,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ':ane_reg' => $_POST['ane_reg'] ?? '', ':ar_sab' => $_POST['ar_sab'] ?? '', ':ar_epi' => $_POST['ar_epi'] ?? '', ':ar_cse' => $_POST['ar_cse'] ?? '', ':ar_pnb' => $_POST['ar_pnb'] ?? '',
             ':ane_umum_reg' => $_POST['ane_umum_reg'] ?? '',
             ':puasa_jam' => $_POST['puasa_jam'] ?? null, ':puasa_tgl' => $_POST['puasa_tgl'] ?? null,
-            ':signature_image' => $signature_image, ':nama_dokter_ttd' => $_POST['nama_dokter_ttd'] ?? ''
+            ':signature_image' => $signature_image_post, ':nama_dokter_ttd' => $_POST['nama_dokter_ttd'] ?? ''
         ];
 
         $stmt->execute($params);
@@ -277,7 +355,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         @media print {
             @page {
                 size: A4;
-                margin: 10mm;
+                margin: 5mm; /* Margin dikecilkan agar muat */
             }
 
             html, body {
@@ -383,36 +461,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <table class="dense-table">
                         <tr>
                             <td width="80">No. RM</td>
-                            <td>: <input type="text" name="no_rm" value="<?php echo getValue('no_rm'); ?>" class="input-line" style="width: 140px;"></td>
+                            <td>: <input type="text" name="no_rm" value="<?php echo getValue('no_rm'); ?>" class="input-line" style="width: 140px;" required></td>
                         </tr>
                         <tr>
                             <td>Nama</td>
-                            <td>: <input type="text" name="nama_pasien" value="<?php echo getValue('nama_pasien'); ?>" class="input-line" style="width: 140px;"></td>
+                            <td>: <input type="text" name="nama_pasien" value="<?php echo getValue('nama_pasien'); ?>" class="input-line" style="width: 140px;" required></td>
                         </tr>
                         <tr>
                             <td>Tgl.Lahir</td>
-                            <td>: <input type="text" name="tgl_lahir" value="<?php echo getValue('tgl_lahir'); ?>" class="input-line" style="width: 140px;"></td>
+                            <td>: <input type="text" name="tgl_lahir" value="<?php echo getValue('tgl_lahir'); ?>" class="input-line" style="width: 140px;" required></td>
                         </tr>
                         <tr>
                             <td>Jenis Kelamin</td>
                             <td>:
-                                <label><input type="radio" name="jk_header" value="L" <?php echo getChecked('jk_header', 'L'); ?>> L</label>
+                                <label><input type="radio" name="jk_header" value="L" <?php echo getChecked('jk_header', 'L'); ?> required> L</label>
                                 <label class="ms-3"><input type="radio" name="jk_header" value="P" <?php echo getChecked('jk_header', 'P'); ?>> P</label>
                             </td>
                         </tr>
                         <tr>
                             <td>Regno</td>
-                            <td>: <input type="text" name="regno" value="<?php echo getValue('regno'); ?>" class="input-line" style="width: 140px;"></td>
+                            <td>: <input type="text" name="regno" value="<?php echo getValue('regno'); ?>" class="input-line" style="width: 140px;" required></td>
                         </tr>
                     </table>
                 </div>
             </div>
 
             <div class="border-box d-flex p-1 justify-content-between" style="border-top: none; font-size: 11px;">
-                <div>Ruangan : <input type="text" name="ruangan" value="<?php echo getValue('ruangan'); ?>" class="input-line" style="width: 150px;"></div>
+                <div>Ruangan : <input type="text" name="ruangan" value="<?php echo getValue('ruangan'); ?>" class="input-line" style="width: 150px;" required></div>
                 <div>
-                    Tanggal : <input type="date" name="tgl_asesmen" value="<?php echo getValue('tgl_asesmen'); ?>" class="input-line">
-                    Jam : <input type="time" name="jam_asesmen" value="<?php echo getValue('jam_asesmen'); ?>" class="input-line"> WITA
+                    Tanggal : <input type="date" name="tgl_asesmen" value="<?php echo getValue('tgl_asesmen'); ?>" class="input-line" required>
+                    Jam : <input type="time" name="jam_asesmen" value="<?php echo getValue('jam_asesmen'); ?>" class="input-line" required> WITA
                 </div>
             </div>
             <div style="border: 1px solid #000; padding: 5px;">
@@ -421,7 +499,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
 
                 <div class="d-flex justify-content-between mt-2 mb-2" style="font-size: 11px;">
-                    <div>Umur: <input type="text" name="umur" value="<?php echo getValue('umur'); ?>" class="input-line" style="width: 40px;"></div>
+                    <div>Umur: <input type="text" name="umur" value="<?php echo getValue('umur'); ?>" class="input-line" style="width: 40px;" required></div>
                     <div>Jenis Kelamin: <label><input type="radio" name="jk_penata" value="L" <?php echo getChecked('jk_penata', 'L'); ?>> L</label> <label class="ms-2"><input type="radio" name="jk_penata" value="P" <?php echo getChecked('jk_penata', 'P'); ?>> P</label></div>
                     <div>Menikah: <label><input type="radio" name="menikah" value="Y" <?php echo getChecked('menikah', 'Y'); ?>> Y</label> <label class="ms-2"><input type="radio" name="menikah" value="T" <?php echo getChecked('menikah', 'T'); ?>> T</label></div>
                     <div>Pekerjaan: <input type="text" name="pekerjaan" value="<?php echo getValue('pekerjaan'); ?>" class="input-line" style="width: 120px;"></div>
@@ -811,7 +889,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <?php endif; ?>
 
                         <div class="mt-2">
-                            ( <input type="text" name="nama_dokter_ttd" value="<?php echo getValue('nama_dokter_ttd'); ?>" class="input-line text-center" placeholder="Nama Dokter" style="width: 180px;"> )
+                            ( <input type="text" name="nama_dokter_ttd" value="<?php echo getValue('nama_dokter_ttd'); ?>" class="input-line text-center" placeholder="Nama Dokter" style="width: 180px;" required> )
                         </div>
                     </div>
                 </div>
@@ -832,6 +910,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            // SINKRONISASI JENIS KELAMIN
+            // Jika JK Header berubah -> JK Penata ikut berubah
+            document.querySelectorAll('input[name="jk_header"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const val = this.value;
+                    const target = document.querySelector(`input[name="jk_penata"][value="${val}"]`);
+                    if (target) target.checked = true;
+                });
+            });
+
+            // Jika JK Penata berubah -> JK Header ikut berubah
+            document.querySelectorAll('input[name="jk_penata"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const val = this.value;
+                    const target = document.querySelector(`input[name="jk_header"][value="${val}"]`);
+                    if (target) target.checked = true;
+                });
+            });
+
+            // SCRIPT TANDA TANGAN
             var canvas = document.getElementById('signature-pad');
             if (canvas) {
                 var signaturePad = new SignaturePad(canvas, {
@@ -859,6 +957,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 });
             }
 
+            // AUTO RESIZE TEXTAREA
             const textareas = document.getElementsByTagName("textarea");
             for (let i = 0; i < textareas.length; i++) {
                 textareas[i].setAttribute("style", "height:" + (textareas[i].scrollHeight) + "px;overflow-y:hidden;");
