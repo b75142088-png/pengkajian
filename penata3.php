@@ -375,7 +375,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 box-shadow: none;
                 padding: 0;
                 width: 100%;
-                /* ZOOM 90% AGAR MUAT PAS 2 HALAMAN */
                 zoom: 1.01; 
                 page-break-after: always;
                 break-after: page;
@@ -910,7 +909,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            // SINKRONISASI JENIS KELAMIN
+            // --- SINKRONISASI JENIS KELAMIN ---
             // Jika JK Header berubah -> JK Penata ikut berubah
             document.querySelectorAll('input[name="jk_header"]').forEach(radio => {
                 radio.addEventListener('change', function() {
@@ -929,10 +928,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 });
             });
 
-            // SCRIPT TANDA TANGAN
+            // --- INISIALISASI TANDA TANGAN ---
             var canvas = document.getElementById('signature-pad');
+            var signaturePad;
+            
             if (canvas) {
-                var signaturePad = new SignaturePad(canvas, {
+                signaturePad = new SignaturePad(canvas, {
                     backgroundColor: 'rgba(255, 255, 255, 0)', 
                     penColor: 'rgb(0, 0, 0)'
                 });
@@ -949,15 +950,62 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 document.getElementById('clear-signature').addEventListener('click', function() {
                     signaturePad.clear();
                 });
-
-                document.getElementById('medicalForm').addEventListener('submit', function(e) {
-                    if (!signaturePad.isEmpty()) {
-                        document.getElementById('signature-image-input').value = signaturePad.toDataURL('image/png');
-                    }
-                });
             }
 
-            // AUTO RESIZE TEXTAREA
+            // --- VALIDASI MANUAL SAAT SUBMIT ---
+            document.getElementById('medicalForm').addEventListener('submit', function(e) {
+                let isValid = true;
+                let firstInvalidInput = null;
+
+                // Ambil semua elemen yang punya atribut 'required'
+                const requiredInputs = this.querySelectorAll('[required]');
+
+                requiredInputs.forEach(input => {
+                    // Reset style error sebelumnya
+                    if (input.type === 'radio') {
+                        // Untuk radio button, kita cek parent/labelnya jika perlu, tapi fokus ke checked
+                        // Logic radio button sedikit beda, browser biasanya handle grouping
+                        // Kita biarkan browser handle radio check validity via checkValidity()
+                    } else {
+                        input.style.borderBottom = '1px dotted #000'; 
+                    }
+
+                    // Cek apakah valid
+                    if (!input.checkValidity()) {
+                        isValid = false;
+                        
+                        // Beri highlight merah
+                        if (input.type !== 'radio') {
+                            input.style.borderBottom = '2px solid red';
+                        }
+
+                        // Simpan elemen pertama yang error untuk discroll
+                        if (!firstInvalidInput) {
+                            firstInvalidInput = input;
+                        }
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault(); // Mencegah form terkirim
+                    
+                    // Tampilkan pesan peringatan keras
+                    alert("MOHON MAAF, DATA BELUM LENGKAP!\n\nSilakan isi semua kolom yang bergaris MERAH (Nama, No RM, Tgl Lahir, dll) sebelum menyimpan.");
+                    
+                    // Scroll ke input pertama yang kosong
+                    if (firstInvalidInput) {
+                        firstInvalidInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstInvalidInput.focus();
+                    }
+                } else {
+                    // Jika valid, proses tanda tangan sebelum kirim
+                    if (signaturePad && !signaturePad.isEmpty()) {
+                        document.getElementById('signature-image-input').value = signaturePad.toDataURL('image/png');
+                    }
+                }
+            });
+
+            // --- AUTO RESIZE TEXTAREA ---
             const textareas = document.getElementsByTagName("textarea");
             for (let i = 0; i < textareas.length; i++) {
                 textareas[i].setAttribute("style", "height:" + (textareas[i].scrollHeight) + "px;overflow-y:hidden;");
@@ -970,6 +1018,5 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         });
     </script>
-
 </body>
 </html>
