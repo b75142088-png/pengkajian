@@ -20,10 +20,10 @@ if (!empty($url_tgl)) {
     // Mapping bulan Indonesia ke Inggris agar bisa diparsing strtotime
     $bulan_indo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     $bulan_inggris = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    
+
     $tgl_bersih = str_ireplace($bulan_indo, $bulan_inggris, $url_tgl);
     $timestamp = strtotime($tgl_bersih);
-    
+
     // Jika berhasil diparsing, ubah ke format Y-m-d, jika tidak biarkan apa adanya (untuk input text biasa)
     if ($timestamp) {
         $url_tgl = date('Y-m-d', $timestamp);
@@ -41,7 +41,7 @@ if (!empty($url_regno)) {
         if ($data_db) {
             $form_data = $data_db; // Pakai data dari Database
             $found_in_db = true;
-            
+
             // Load tanda tangan jika ada di database
             if (!empty($data_db['signature_image'])) {
                 $signature_preview = $data_db['signature_image'];
@@ -61,7 +61,8 @@ if (!$found_in_db) {
 }
 
 // --- FUNGSI HELPER UNTUK MENAMPILKAN DATA DI HTML ---
-function getValue($field) {
+function getValue($field)
+{
     global $form_data;
     if (isset($_POST[$field])) {
         return htmlspecialchars($_POST[$field]);
@@ -72,12 +73,13 @@ function getValue($field) {
     return '';
 }
 
-function getChecked($field, $val) {
+function getChecked($field, $val)
+{
     global $form_data;
     // Cek POST dulu
     if (isset($_POST[$field])) {
         if (is_array($_POST[$field])) {
-            return in_array($val, $_POST[$field]) ? 'checked' : ''; 
+            return in_array($val, $_POST[$field]) ? 'checked' : '';
         }
         return ($_POST[$field] == $val) ? 'checked' : '';
     }
@@ -93,12 +95,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
         // Ambil data TTD baru jika ada
         $signature_image_post = $_POST['signature_image'] ?? '';
-        
+
         // Jika user tanda tangan baru, pakai itu. Jika tidak, pertahankan yang lama (jika ada)
         if (!empty($signature_image_post)) {
             $signature_preview = $signature_image_post;
         } elseif (isset($form_data['signature_image'])) {
-             $signature_image_post = $form_data['signature_image']; 
+            $signature_image_post = $form_data['signature_image'];
         }
 
         // Query INSERT
@@ -169,57 +171,160 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         )";
 
         $stmt = $pdo->prepare($sql);
-        
+
         $params = [
-            ':no_rm' => $_POST['no_rm'] ?? '', ':nama_pasien' => $_POST['nama_pasien'] ?? '', ':tgl_lahir' => $_POST['tgl_lahir'] ?? null,
-            ':jk_header' => $_POST['jk_header'] ?? '', ':regno' => $_POST['regno'] ?? '', ':ruangan' => $_POST['ruangan'] ?? '',
-            ':tgl_asesmen' => $_POST['tgl_asesmen'] ?? null, ':jam_asesmen' => $_POST['jam_asesmen'] ?? null,
-            ':umur' => $_POST['umur'] ?? 0, ':jk_penata' => $_POST['jk_penata'] ?? '', ':menikah' => $_POST['menikah'] ?? '', ':pekerjaan' => $_POST['pekerjaan'] ?? '',
-            ':rokok' => $_POST['rokok'] ?? '', ':rokok_jumlah' => $_POST['rokok_jumlah'] ?? '', ':kopi' => $_POST['kopi'] ?? '', ':kopi_jumlah' => $_POST['kopi_jumlah'] ?? '',
-            ':alkohol' => $_POST['alkohol'] ?? '', ':alkohol_jumlah' => $_POST['alkohol_jumlah'] ?? '', ':olahraga' => $_POST['olahraga'] ?? '', ':olahraga_jumlah' => $_POST['olahraga_jumlah'] ?? '',
-            ':obat_resep' => $_POST['obat_resep'] ?? '', ':obat_bebas' => $_POST['obat_bebas'] ?? '', ':obat_bebas_ket' => $_POST['obat_bebas_ket'] ?? '',
-            ':aspirin' => $_POST['aspirin'] ?? '', ':aspirin_dosis' => $_POST['aspirin_dosis'] ?? '', ':painkiller' => $_POST['painkiller'] ?? '', ':painkiller_dosis' => $_POST['painkiller_dosis'] ?? '',
-            ':steroid' => $_POST['steroid'] ?? '', ':steroid_ket' => $_POST['steroid_ket'] ?? '', ':alergi_obat' => $_POST['alergi_obat'] ?? '', ':alergi_obat_ket' => $_POST['alergi_obat_ket'] ?? '',
-            ':alergi_lateks' => $_POST['alt'] ?? '', ':alergi_plester' => $_POST['alp'] ?? '', ':alergi_makanan' => $_POST['alm'] ?? '',
-            ':rk_perdarahan_abnormal' => $_POST['rk_Perdarahanyangtidaknormal'] ?? '', ':rk_pembekuan_abnormal' => $_POST['rk_Pembekuandarahtidaknormal'] ?? '', ':rk_masalah_pembiusan' => $_POST['rk_Permasalahandalampembiusan'] ?? '',
-            ':rk_jantung_koroner' => $_POST['rk_Operasijantungkoroner'] ?? '', ':rk_diabetes' => $_POST['rk_Diabetes'] ?? '', ':rk_serangan_jantung' => $_POST['rk_Seranganjantung'] ?? '',
-            ':rk_hipertensi' => $_POST['rk_Hipertensi'] ?? '', ':rk_tbc' => $_POST['rk_Tuberkulosis'] ?? '', ':rk_penyakit_berat_lain' => $_POST['rk_Penyakitberatlainnya'] ?? '', ':rk_penjelasan_ya' => $_POST['rk_penjelasan_ya'] ?? '',
-            ':bahasa_indo' => $_POST['bahasa_indo'] ?? '', ':bahasa_lain' => $_POST['bahasa_lain'] ?? '', ':bahasa_lain_ket' => $_POST['bahasa_lain_ket'] ?? '',
-            ':kom_mata' => $_POST['kom_mata'] ?? '', ':kom_telinga' => $_POST['kom_telinga'] ?? '', ':kom_bicara' => $_POST['kom_bicara'] ?? '',
-            ':rp_perdarahan_abnormal' => $_POST['rp_Perdarahantidaknormal'] ?? '', ':rp_pembekuan_abnormal' => $_POST['rp_Pembekuandarahtidaknormal'] ?? '', ':rp_maag' => $_POST['rp_Sakitmaag'] ?? '',
-            ':rp_anemia' => $_POST['rp_Anemia'] ?? '', ':rp_sesak' => $_POST['rp_Sesaknapas'] ?? '', ':rp_asma' => $_POST['rp_Asma'] ?? '', ':rp_pingsan' => $_POST['rp_Pingsan'] ?? '',
-            ':rp_nyeri_dada' => $_POST['rp_Seranganjantung/Nyeridada'] ?? '', ':rp_hepatitis' => $_POST['rp_Hepatitis/sakitkuning'] ?? '', ':rp_hipertensi' => $_POST['rp_Hipertensi'] ?? '',
-            ':rp_ngorok' => $_POST['rp_SumbatanjalannafassaatTidur/Mengorok'] ?? '', ':rp_penyakit_berat_lain' => $_POST['rp_Penyakitberatlainnya'] ?? '', ':rp_diabetes' => $_POST['rp_Diabetes'] ?? '', ':rp_penjelasan_ya' => $_POST['rp_penjelasan_ya'] ?? '',
-            ':transfusi' => $_POST['transfusi'] ?? '', ':transfusi_tahun' => $_POST['transfusi_tahun'] ?? '', ':hiv_check' => $_POST['hiv_check'] ?? '', ':hiv_tahun' => $_POST['hiv_tahun'] ?? '', ':hiv_res' => $_POST['hiv_res'] ?? '',
-            ':lensa_kontak' => $_POST['lk'] ?? '', ':kacamata' => $_POST['km'] ?? '', ':alat_bantu_dengar' => $_POST['abd'] ?? '', ':gigi_palsu' => $_POST['gp'] ?? '',
-            ':op_lokal_ket' => $_POST['op_lokal_ket'] ?? '', ':op_regional_ket' => $_POST['op_regional_ket'] ?? '', ':op_umum_ket' => $_POST['op_umum_ket'] ?? '',
-            ':terakhir_periksa_tgl' => $_POST['terakhir_periksa_tgl'] ?? null, ':terakhir_periksa_tempat' => $_POST['terakhir_periksa_tempat'] ?? '', ':terakhir_periksa_penyakit' => $_POST['terakhir_periksa_penyakit'] ?? '',
-            ':jml_hamil' => $_POST['jml_hamil'] ?? '', ':jml_anak' => $_POST['jml_anak'] ?? '', ':menstruasi' => $_POST['menstruasi'] ?? '', ':menyusui' => $_POST['menyusui'] ?? '',
+            ':no_rm' => $_POST['no_rm'] ?? '',
+            ':nama_pasien' => $_POST['nama_pasien'] ?? '',
+            ':tgl_lahir' => $_POST['tgl_lahir'] ?? null,
+            ':jk_header' => $_POST['jk_header'] ?? '',
+            ':regno' => $_POST['regno'] ?? '',
+            ':ruangan' => $_POST['ruangan'] ?? '',
+            ':tgl_asesmen' => $_POST['tgl_asesmen'] ?? null,
+            ':jam_asesmen' => $_POST['jam_asesmen'] ?? null,
+            ':umur' => $_POST['umur'] ?? 0,
+            ':jk_penata' => $_POST['jk_penata'] ?? '',
+            ':menikah' => $_POST['menikah'] ?? '',
+            ':pekerjaan' => $_POST['pekerjaan'] ?? '',
+            ':rokok' => $_POST['rokok'] ?? '',
+            ':rokok_jumlah' => $_POST['rokok_jumlah'] ?? '',
+            ':kopi' => $_POST['kopi'] ?? '',
+            ':kopi_jumlah' => $_POST['kopi_jumlah'] ?? '',
+            ':alkohol' => $_POST['alkohol'] ?? '',
+            ':alkohol_jumlah' => $_POST['alkohol_jumlah'] ?? '',
+            ':olahraga' => $_POST['olahraga'] ?? '',
+            ':olahraga_jumlah' => $_POST['olahraga_jumlah'] ?? '',
+            ':obat_resep' => $_POST['obat_resep'] ?? '',
+            ':obat_bebas' => $_POST['obat_bebas'] ?? '',
+            ':obat_bebas_ket' => $_POST['obat_bebas_ket'] ?? '',
+            ':aspirin' => $_POST['aspirin'] ?? '',
+            ':aspirin_dosis' => $_POST['aspirin_dosis'] ?? '',
+            ':painkiller' => $_POST['painkiller'] ?? '',
+            ':painkiller_dosis' => $_POST['painkiller_dosis'] ?? '',
+            ':steroid' => $_POST['steroid'] ?? '',
+            ':steroid_ket' => $_POST['steroid_ket'] ?? '',
+            ':alergi_obat' => $_POST['alergi_obat'] ?? '',
+            ':alergi_obat_ket' => $_POST['alergi_obat_ket'] ?? '',
+            ':alergi_lateks' => $_POST['alt'] ?? '',
+            ':alergi_plester' => $_POST['alp'] ?? '',
+            ':alergi_makanan' => $_POST['alm'] ?? '',
+            ':rk_perdarahan_abnormal' => $_POST['rk_Perdarahanyangtidaknormal'] ?? '',
+            ':rk_pembekuan_abnormal' => $_POST['rk_Pembekuandarahtidaknormal'] ?? '',
+            ':rk_masalah_pembiusan' => $_POST['rk_Permasalahandalampembiusan'] ?? '',
+            ':rk_jantung_koroner' => $_POST['rk_Operasijantungkoroner'] ?? '',
+            ':rk_diabetes' => $_POST['rk_Diabetes'] ?? '',
+            ':rk_serangan_jantung' => $_POST['rk_Seranganjantung'] ?? '',
+            ':rk_hipertensi' => $_POST['rk_Hipertensi'] ?? '',
+            ':rk_tbc' => $_POST['rk_Tuberkulosis'] ?? '',
+            ':rk_penyakit_berat_lain' => $_POST['rk_Penyakitberatlainnya'] ?? '',
+            ':rk_penjelasan_ya' => $_POST['rk_penjelasan_ya'] ?? '',
+            ':bahasa_indo' => $_POST['bahasa_indo'] ?? '',
+            ':bahasa_lain' => $_POST['bahasa_lain'] ?? '',
+            ':bahasa_lain_ket' => $_POST['bahasa_lain_ket'] ?? '',
+            ':kom_mata' => $_POST['kom_mata'] ?? '',
+            ':kom_telinga' => $_POST['kom_telinga'] ?? '',
+            ':kom_bicara' => $_POST['kom_bicara'] ?? '',
+            ':rp_perdarahan_abnormal' => $_POST['rp_Perdarahantidaknormal'] ?? '',
+            ':rp_pembekuan_abnormal' => $_POST['rp_Pembekuandarahtidaknormal'] ?? '',
+            ':rp_maag' => $_POST['rp_Sakitmaag'] ?? '',
+            ':rp_anemia' => $_POST['rp_Anemia'] ?? '',
+            ':rp_sesak' => $_POST['rp_Sesaknapas'] ?? '',
+            ':rp_asma' => $_POST['rp_Asma'] ?? '',
+            ':rp_pingsan' => $_POST['rp_Pingsan'] ?? '',
+            ':rp_nyeri_dada' => $_POST['rp_Seranganjantung/Nyeridada'] ?? '',
+            ':rp_hepatitis' => $_POST['rp_Hepatitis/sakitkuning'] ?? '',
+            ':rp_hipertensi' => $_POST['rp_Hipertensi'] ?? '',
+            ':rp_ngorok' => $_POST['rp_SumbatanjalannafassaatTidur/Mengorok'] ?? '',
+            ':rp_penyakit_berat_lain' => $_POST['rp_Penyakitberatlainnya'] ?? '',
+            ':rp_diabetes' => $_POST['rp_Diabetes'] ?? '',
+            ':rp_penjelasan_ya' => $_POST['rp_penjelasan_ya'] ?? '',
+            ':transfusi' => $_POST['transfusi'] ?? '',
+            ':transfusi_tahun' => $_POST['transfusi_tahun'] ?? '',
+            ':hiv_check' => $_POST['hiv_check'] ?? '',
+            ':hiv_tahun' => $_POST['hiv_tahun'] ?? '',
+            ':hiv_res' => $_POST['hiv_res'] ?? '',
+            ':lensa_kontak' => $_POST['lk'] ?? '',
+            ':kacamata' => $_POST['km'] ?? '',
+            ':alat_bantu_dengar' => $_POST['abd'] ?? '',
+            ':gigi_palsu' => $_POST['gp'] ?? '',
+            ':op_lokal_ket' => $_POST['op_lokal_ket'] ?? '',
+            ':op_regional_ket' => $_POST['op_regional_ket'] ?? '',
+            ':op_umum_ket' => $_POST['op_umum_ket'] ?? '',
+            ':terakhir_periksa_tgl' => $_POST['terakhir_periksa_tgl'] ?? null,
+            ':terakhir_periksa_tempat' => $_POST['terakhir_periksa_tempat'] ?? '',
+            ':terakhir_periksa_penyakit' => $_POST['terakhir_periksa_penyakit'] ?? '',
+            ':jml_hamil' => $_POST['jml_hamil'] ?? '',
+            ':jml_anak' => $_POST['jml_anak'] ?? '',
+            ':menstruasi' => $_POST['menstruasi'] ?? '',
+            ':menyusui' => $_POST['menyusui'] ?? '',
             ':anamnesis' => $_POST['anamnesis'] ?? '',
-            ':dok_hilang_gigi' => $_POST['dok_Hilangnyagigi'] ?? '', ':dok_masalah_leher' => $_POST['dok_Masalahmobilisasileher'] ?? '', ':dok_leher_pendek' => $_POST['dok_Leherpendek'] ?? '',
-            ':dok_batuk' => $_POST['dok_Batuk'] ?? '', ':dok_sesak' => $_POST['dok_Sesaknafas'] ?? '', ':dok_infeksi_nafas' => $_POST['dok_Barusajamenderitainfeksisalurannafasatas'] ?? '',
-            ':dok_mens_abnormal' => $_POST['dok_Periodemenstruasitidaknormal'] ?? '', ':dok_stroke' => $_POST['dok_Stroke'] ?? '',
-            ':dok_sakit_dada' => $_POST['dok_Sakitdada'] ?? '', ':dok_jantung_abnormal' => $_POST['dok_Denyutjantungtidaknormal'] ?? '', ':dok_muntah' => $_POST['dok_Muntah'] ?? '',
-            ':dok_susah_kencing' => $_POST['dok_Susahkencing'] ?? '', ':dok_kejang' => $_POST['dok_Kejang'] ?? '', ':dok_hamil' => $_POST['dok_Sedanghamil'] ?? '',
-            ':dok_pingsan' => $_POST['dok_Pingsan'] ?? '', ':dok_obesitas' => $_POST['dok_Obesitas'] ?? '',
+            ':dok_hilang_gigi' => $_POST['dok_Hilangnyagigi'] ?? '',
+            ':dok_masalah_leher' => $_POST['dok_Masalahmobilisasileher'] ?? '',
+            ':dok_leher_pendek' => $_POST['dok_Leherpendek'] ?? '',
+            ':dok_batuk' => $_POST['dok_Batuk'] ?? '',
+            ':dok_sesak' => $_POST['dok_Sesaknafas'] ?? '',
+            ':dok_infeksi_nafas' => $_POST['dok_Barusajamenderitainfeksisalurannafasatas'] ?? '',
+            ':dok_mens_abnormal' => $_POST['dok_Periodemenstruasitidaknormal'] ?? '',
+            ':dok_stroke' => $_POST['dok_Stroke'] ?? '',
+            ':dok_sakit_dada' => $_POST['dok_Sakitdada'] ?? '',
+            ':dok_jantung_abnormal' => $_POST['dok_Denyutjantungtidaknormal'] ?? '',
+            ':dok_muntah' => $_POST['dok_Muntah'] ?? '',
+            ':dok_susah_kencing' => $_POST['dok_Susahkencing'] ?? '',
+            ':dok_kejang' => $_POST['dok_Kejang'] ?? '',
+            ':dok_hamil' => $_POST['dok_Sedanghamil'] ?? '',
+            ':dok_pingsan' => $_POST['dok_Pingsan'] ?? '',
+            ':dok_obesitas' => $_POST['dok_Obesitas'] ?? '',
             ':dok_keterangan' => $_POST['dok_keterangan'] ?? '',
-            ':ku_kesadaran' => $_POST['ku_kesadaran'] ?? '', ':ku_visus' => $_POST['ku_visus'] ?? '', ':ku_faring' => $_POST['ku_faring'] ?? '', ':ku_gigi_palsu' => $_POST['ku_gigi_palsu'] ?? '', ':ku_keterangan' => $_POST['ku_keterangan'] ?? '',
-            ':fisik_tinggi' => $_POST['fisik_tinggi'] ?? '', ':fisik_berat' => $_POST['fisik_berat'] ?? '', ':fisik_td' => $_POST['fisik_td'] ?? '', ':fisik_nadi' => $_POST['fisik_nadi'] ?? '', ':fisik_rr' => $_POST['fisik_rr'] ?? '', ':fisik_suhu' => $_POST['fisik_suhu'] ?? '',
-            ':fisik_paru' => $_POST['fisik_paru'] ?? '', ':fisik_jantung' => $_POST['fisik_jantung'] ?? '', ':fisik_abdomen' => $_POST['fisik_abdomen'] ?? '', ':fisik_ekstrimitas' => $_POST['fisik_ekstrimitas'] ?? '', ':fisik_neurologi' => $_POST['fisik_neurologi'] ?? '', ':fisik_lain' => $_POST['fisik_lain'] ?? '',
-            ':lab_hb_ht' => $_POST['lab_hb_ht'] ?? '', ':lab_pt_aptt' => $_POST['lab_pt_aptt'] ?? '', ':lab_kehamilan' => $_POST['lab_kehamilan'] ?? '', ':lab_kalium' => $_POST['lab_kalium'] ?? '', ':lab_ureum' => $_POST['lab_ureum'] ?? '', ':lab_keterangan' => $_POST['lab_keterangan'] ?? '',
-            ':lab_rontgen' => $_POST['lab_rontgen'] ?? '', ':lab_ekg' => $_POST['lab_ekg'] ?? '', ':lab_nacl' => $_POST['lab_nacl'] ?? '', ':lab_co2' => $_POST['lab_co2'] ?? '', ':lab_lain' => $_POST['lab_lain'] ?? '',
-            ':masalah' => $_POST['masalah'] ?? '', ':asa' => $_POST['asa'] ?? '', ':saran' => $_POST['saran'] ?? '',
-            ':ane_umum' => $_POST['ane_umum'] ?? '', ':au_iv' => $_POST['au_iv'] ?? '', ':au_sm' => $_POST['au_sm'] ?? '', ':au_lma' => $_POST['au_lma'] ?? '', ':au_ett' => $_POST['au_ett'] ?? '',
-            ':ane_reg' => $_POST['ane_reg'] ?? '', ':ar_sab' => $_POST['ar_sab'] ?? '', ':ar_epi' => $_POST['ar_epi'] ?? '', ':ar_cse' => $_POST['ar_cse'] ?? '', ':ar_pnb' => $_POST['ar_pnb'] ?? '',
+            ':ku_kesadaran' => $_POST['ku_kesadaran'] ?? '',
+            ':ku_visus' => $_POST['ku_visus'] ?? '',
+            ':ku_faring' => $_POST['ku_faring'] ?? '',
+            ':ku_gigi_palsu' => $_POST['ku_gigi_palsu'] ?? '',
+            ':ku_keterangan' => $_POST['ku_keterangan'] ?? '',
+            ':fisik_tinggi' => $_POST['fisik_tinggi'] ?? '',
+            ':fisik_berat' => $_POST['fisik_berat'] ?? '',
+            ':fisik_td' => $_POST['fisik_td'] ?? '',
+            ':fisik_nadi' => $_POST['fisik_nadi'] ?? '',
+            ':fisik_rr' => $_POST['fisik_rr'] ?? '',
+            ':fisik_suhu' => $_POST['fisik_suhu'] ?? '',
+            ':fisik_paru' => $_POST['fisik_paru'] ?? '',
+            ':fisik_jantung' => $_POST['fisik_jantung'] ?? '',
+            ':fisik_abdomen' => $_POST['fisik_abdomen'] ?? '',
+            ':fisik_ekstrimitas' => $_POST['fisik_ekstrimitas'] ?? '',
+            ':fisik_neurologi' => $_POST['fisik_neurologi'] ?? '',
+            ':fisik_lain' => $_POST['fisik_lain'] ?? '',
+            ':lab_hb_ht' => $_POST['lab_hb_ht'] ?? '',
+            ':lab_pt_aptt' => $_POST['lab_pt_aptt'] ?? '',
+            ':lab_kehamilan' => $_POST['lab_kehamilan'] ?? '',
+            ':lab_kalium' => $_POST['lab_kalium'] ?? '',
+            ':lab_ureum' => $_POST['lab_ureum'] ?? '',
+            ':lab_keterangan' => $_POST['lab_keterangan'] ?? '',
+            ':lab_rontgen' => $_POST['lab_rontgen'] ?? '',
+            ':lab_ekg' => $_POST['lab_ekg'] ?? '',
+            ':lab_nacl' => $_POST['lab_nacl'] ?? '',
+            ':lab_co2' => $_POST['lab_co2'] ?? '',
+            ':lab_lain' => $_POST['lab_lain'] ?? '',
+            ':masalah' => $_POST['masalah'] ?? '',
+            ':asa' => $_POST['asa'] ?? '',
+            ':saran' => $_POST['saran'] ?? '',
+            ':ane_umum' => $_POST['ane_umum'] ?? '',
+            ':au_iv' => $_POST['au_iv'] ?? '',
+            ':au_sm' => $_POST['au_sm'] ?? '',
+            ':au_lma' => $_POST['au_lma'] ?? '',
+            ':au_ett' => $_POST['au_ett'] ?? '',
+            ':ane_reg' => $_POST['ane_reg'] ?? '',
+            ':ar_sab' => $_POST['ar_sab'] ?? '',
+            ':ar_epi' => $_POST['ar_epi'] ?? '',
+            ':ar_cse' => $_POST['ar_cse'] ?? '',
+            ':ar_pnb' => $_POST['ar_pnb'] ?? '',
             ':ane_umum_reg' => $_POST['ane_umum_reg'] ?? '',
-            ':puasa_jam' => $_POST['puasa_jam'] ?? null, ':puasa_tgl' => $_POST['puasa_tgl'] ?? null,
-            ':signature_image' => $signature_image_post, ':nama_dokter_ttd' => $_POST['nama_dokter_ttd'] ?? ''
+            ':puasa_jam' => $_POST['puasa_jam'] ?? null,
+            ':puasa_tgl' => $_POST['puasa_tgl'] ?? null,
+            ':signature_image' => $signature_image_post,
+            ':nama_dokter_ttd' => $_POST['nama_dokter_ttd'] ?? ''
         ];
 
         $stmt->execute($params);
         $pesan_sukses = "Data Asesmen Pra Anestesi & Tanda Tangan berhasil disimpan ke Database.";
-        
-    } catch(PDOException $e) {
+    } catch (PDOException $e) {
         $error_message = "Gagal menyimpan data: " . $e->getMessage();
     }
 }
@@ -320,7 +425,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         table.dense-table td {
-            padding: 0 2px; /* Super compact padding */
+            padding: 0 2px;
+            /* Super compact padding */
             vertical-align: top;
         }
 
@@ -338,7 +444,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .signature-wrapper {
             position: relative;
             width: 100%;
-            height: 70px; /* Reduced height to save space */
+            height: 70px;
+            /* Reduced height to save space */
             border: 2px dashed #999;
             background-color: #fcfcfc;
             margin-top: 2px;
@@ -355,10 +462,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         @media print {
             @page {
                 size: A4;
-                margin: 5mm; /* Margin dikecilkan agar muat */
+                margin: 5mm;
+                /* Margin dikecilkan agar muat */
             }
 
-            html, body {
+            html,
+            body {
                 width: 210mm;
                 height: 297mm;
             }
@@ -375,7 +484,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 box-shadow: none;
                 padding: 0;
                 width: 100%;
-                zoom: 1.01; 
+                zoom: 1.01;
                 page-break-after: always;
                 break-after: page;
             }
@@ -404,7 +513,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 background: transparent !important;
                 box-shadow: none !important;
             }
-            
+
             textarea.flat-textarea {
                 height: auto !important;
                 display: block !important;
@@ -416,9 +525,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 height: auto !important;
                 min-height: 40px;
             }
-            
+
             /* Tighten spacing specifically for print */
-            .mb-1, .mb-2, .mb-3 {
+            .mb-1,
+            .mb-2,
+            .mb-3 {
                 margin-bottom: 2px !important;
             }
         }
@@ -432,7 +543,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php echo $pesan_sukses; ?>
         </div>
     <?php endif; ?>
-    
+
     <?php if ($error_message): ?>
         <div class="alert alert-danger text-center no-print m-3">
             <?php echo $error_message; ?>
@@ -553,7 +664,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $keluarga_kiri = ['Perdarahan yang tidak normal', 'Pembekuan darah tidak normal', 'Permasalahan dalam pembiusan', 'Operasi jantung koroner', 'Diabetes'];
                             foreach ($keluarga_kiri as $k) {
                                 $name = 'rk_' . str_replace(' ', '', $k);
-                                echo "<tr><td>$k</td><td>: <label><input type='radio' name='$name' value='Y' ".getChecked($name, 'Y')."> Y</label> <label><input type='radio' name='$name' value='T' ".getChecked($name, 'T')."> T</label></td></tr>";
+                                echo "<tr><td>$k</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -564,7 +675,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $keluarga_kanan = ['Serangan jantung', 'Hipertensi', 'Tuberkulosis', 'Penyakit berat lainnya'];
                             foreach ($keluarga_kanan as $k) {
                                 $name = 'rk_' . str_replace(' ', '', $k);
-                                echo "<tr><td width='160'>$k</td><td>: <label><input type='radio' name='$name' value='Y' ".getChecked($name, 'Y')."> Y</label> <label><input type='radio' name='$name' value='T' ".getChecked($name, 'T')."> T</label></td></tr>";
+                                echo "<tr><td width='160'>$k</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -600,7 +711,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $pasien_kiri = ['Perdarahan tidak normal', 'Pembekuan darah tidak normal', 'Sakit maag', 'Anemia', 'Sesak napas', 'Asma', 'Pingsan'];
                             foreach ($pasien_kiri as $p) {
                                 $name = 'rp_' . str_replace(' ', '', $p);
-                                echo "<tr><td>$p</td><td>: <label><input type='radio' name='$name' value='Y' ".getChecked($name, 'Y')."> Y</label> <label><input type='radio' name='$name' value='T' ".getChecked($name, 'T')."> T</label></td></tr>";
+                                echo "<tr><td>$p</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -611,7 +722,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $pasien_kanan = ['Serangan jantung/Nyeri dada', 'Hepatitis/sakit kuning', 'Hipertensi', 'Sumbatan jalan nafas saat Tidur/Mengorok', 'Penyakit berat lainnya', 'Diabetes'];
                             foreach ($pasien_kanan as $p) {
                                 $name = 'rp_' . str_replace('/', '', str_replace(' ', '', $p));
-                                echo "<tr><td width='220'>$p</td><td>: <label><input type='radio' name='$name' value='Y' ".getChecked($name, 'Y')."> Y</label> <label><input type='radio' name='$name' value='T' ".getChecked($name, 'T')."> T</label></td></tr>";
+                                echo "<tr><td width='220'>$p</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -672,7 +783,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
             </div>
         </div>
-        
+
         <div class="page-a4">
             <div class="header-green-bar">
                 <span>BLUD RSUD SANJIWANI GIANYAR</span>
@@ -694,7 +805,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $dok_kiri = ['Hilangnya gigi', 'Masalah mobilisasi leher', 'Leher pendek', 'Batuk', 'Sesak nafas', 'Baru saja menderita infeksi saluran nafas atas', 'Periode menstruasi tidak normal', 'Stroke'];
                             foreach ($dok_kiri as $d) {
                                 $name = 'dok_' . str_replace(' ', '', $d);
-                                echo "<tr><td width='180'>$d</td><td>: <label><input type='radio' name='$name' value='Y' ".getChecked($name, 'Y')."> Y</label> <label><input type='radio' name='$name' value='T' ".getChecked($name, 'T')."> T</label></td></tr>";
+                                echo "<tr><td width='180'>$d</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -705,7 +816,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $dok_kanan = ['Sakit dada', 'Denyut jantung tidak normal', 'Muntah', 'Susah kencing', 'Kejang', 'Sedang hamil', 'Pingsan', 'Obesitas'];
                             foreach ($dok_kanan as $d) {
                                 $name = 'dok_' . str_replace(' ', '', $d);
-                                echo "<tr><td width='160'>$d</td><td>: <label><input type='radio' name='$name' value='Y' ".getChecked($name, 'Y')."> Y</label> <label><input type='radio' name='$name' value='T' ".getChecked($name, 'T')."> T</label></td></tr>";
+                                echo "<tr><td width='160'>$d</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -900,6 +1011,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <div class="text-center mb-5 no-print">
             <button type="submit" class="btn btn-primary btn-lg px-5">Simpan Data Rekam Medis</button>
+            <button type="button" onclick="window.print()" class="btn btn-success btn-lg px-5 ms-2">
+                Cetak Formulir
+            </button>
             <?php if (!empty($pesan_sukses)): ?>
                 <button type="button" onclick="window.print()" class="btn btn-success btn-lg px-5 ms-2">Cetak Formulir</button>
             <?php endif; ?>
@@ -931,10 +1045,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // --- INISIALISASI TANDA TANGAN ---
             var canvas = document.getElementById('signature-pad');
             var signaturePad;
-            
+
             if (canvas) {
                 signaturePad = new SignaturePad(canvas, {
-                    backgroundColor: 'rgba(255, 255, 255, 0)', 
+                    backgroundColor: 'rgba(255, 255, 255, 0)',
                     penColor: 'rgb(0, 0, 0)'
                 });
 
@@ -967,13 +1081,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         // Logic radio button sedikit beda, browser biasanya handle grouping
                         // Kita biarkan browser handle radio check validity via checkValidity()
                     } else {
-                        input.style.borderBottom = '1px dotted #000'; 
+                        input.style.borderBottom = '1px dotted #000';
                     }
 
                     // Cek apakah valid
                     if (!input.checkValidity()) {
                         isValid = false;
-                        
+
                         // Beri highlight merah
                         if (input.type !== 'radio') {
                             input.style.borderBottom = '2px solid red';
@@ -988,13 +1102,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 if (!isValid) {
                     e.preventDefault(); // Mencegah form terkirim
-                    
+
                     // Tampilkan pesan peringatan keras
                     alert("MOHON MAAF, DATA BELUM LENGKAP!\n\nSilakan isi semua kolom yang bergaris MERAH (Nama, No RM, Tgl Lahir, dll) sebelum menyimpan.");
-                    
+
                     // Scroll ke input pertama yang kosong
                     if (firstInvalidInput) {
-                        firstInvalidInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstInvalidInput.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
                         firstInvalidInput.focus();
                     }
                 } else {
@@ -1019,4 +1136,5 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         });
     </script>
 </body>
+
 </html>
