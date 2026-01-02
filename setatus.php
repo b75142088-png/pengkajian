@@ -37,7 +37,7 @@ $chart_grid_data = [];
 // Variabel Pasca Sedasi
 $jam_masuk_pasca = "";
 $catatan_bawah = $keputusan = "";
-$vital_sign_grid_arr = []; 
+$vital_sign_grid_arr = [];
 $vas_score_pasca = "";
 // Skor Aldrette & Steward
 $a1 = $a2 = $a3 = $a4 = $a5 = "";
@@ -52,7 +52,7 @@ $pesan_simpan = "";
 // --- 3. LOGIKA GET (LOAD DATA GABUNGAN) ---
 if (isset($_GET['regno']) && !empty($_GET['regno'])) {
     $regno_cari = $conn->real_escape_string($_GET['regno']);
-    
+
     // A. Load Data Status Sedasi (Parent)
     $sql_cek = "SELECT * FROM status_sedasi WHERE regno = '$regno_cari'";
     $result = $conn->query($sql_cek);
@@ -92,7 +92,7 @@ if (isset($_GET['regno']) && !empty($_GET['regno'])) {
         $gcs_m = $row['gcs_m'];
         $rencana_mulai = $row['rencana_mulai'];
         $rencana_selesai = $row['rencana_selesai'];
-        
+
         // Monitoring Data
         $mon_json = json_decode($row['monitoring_data'], true);
         if ($mon_json) {
@@ -125,21 +125,21 @@ if (isset($_GET['regno']) && !empty($_GET['regno'])) {
         $jam_masuk_pasca = $rowP['jam_masuk'];
         $vital_sign_grid_arr = json_decode($rowP['vital_sign_grid'], true) ?? [];
         $vas_score_pasca = $rowP['vas_score_pasca'];
-        
+
         // Scores
         $a1 = $rowP['skor_aldrette_aktifitas'];
         $a2 = $rowP['skor_aldrette_sirkulasi'];
         $a3 = $rowP['skor_aldrette_pernapasan'];
         $a4 = $rowP['skor_aldrette_kesadaran'];
         $a5 = $rowP['skor_aldrette_warna_kulit'];
-        
+
         $s1 = $rowP['skor_steward_kesadaran'];
         $s2 = $rowP['skor_steward_pernapasan'];
         $s3 = $rowP['skor_steward_aktivitas'];
-        
+
         $catatan_bawah = $rowP['catatan_bawah'];
         $keputusan = $rowP['keputusan'];
-        
+
         $nama_dokter = $rowP['nama_dokter'];
         $ttd_dokter = $rowP['ttd_dokter'];
         $nama_anestesi = $rowP['nama_anestesi'];
@@ -165,7 +165,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $nadi = $_POST['nadi'];
     $nafas = $_POST['nafas'];
     $spo2 = $_POST['spo2'];
-    
+
     $jalan_nafas = json_encode($_POST['jalan_nafas'] ?? []);
     $mallampati_json = json_encode($_POST['mallampati'] ?? "");
     $leher = json_encode($_POST['leher'] ?? []);
@@ -173,12 +173,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $skala_nyeri = ($_POST['skala_nyeri_manual'] !== '') ? $_POST['skala_nyeri_manual'] : ($_POST['skala_nyeri_radio'] ?? 0);
     $iv_line_tempat = $_POST['iv_line_tempat'];
     $iv_line_cairan = $_POST['iv_line_cairan'];
-    
+
     $puasa = [];
     if (isset($_POST['puasa_makan'])) $puasa[] = 'Makan';
     if (isset($_POST['puasa_minum'])) $puasa[] = 'Minum';
     $status_puasa = implode(", ", $puasa);
-    
+
     $lab = $_POST['lab'];
     $asa_score = $_POST['asa'] ?? '';
     $gcs_e = $_POST['gcs_e'];
@@ -207,7 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         $chart_data_final[] = $row_chart;
     }
-    
+
     $monitoring_data = [
         'obat_nama' => $_POST['mon_obat_nama'] ?? [],
         'obat_grid' => $obat_grid_final,
@@ -264,12 +264,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             asa_score=?, gcs_e=?, gcs_v=?, gcs_m=?, rencana_mulai=?, rencana_selesai=?, monitoring_data=?
             WHERE regno=?";
         $stmt1 = $conn->prepare($sql1);
-        $stmt1->bind_param("ssssssssddsiissssisisssiiisssss",
-            $no_rm, $nama, $tgl_lahir, $jk, $waktu_input,
-            $ruangan, $tindakan, $diagnosa, $bb, $tb, $td, $nadi, $nafas, $spo2,
-            $jalan_nafas, $mallampati_json, $leher, $alergi_check, $skala_nyeri,
-            $iv_line_tempat, $iv_line_cairan, $status_puasa, $lab,
-            $asa_score, $gcs_e, $gcs_v, $gcs_m, $rencana_mulai, $rencana_selesai, $monitoring_json,
+        $stmt1->bind_param(
+            "ssssssssddsiissssisisssiiisssss",
+            $no_rm,
+            $nama,
+            $tgl_lahir,
+            $jk,
+            $waktu_input,
+            $ruangan,
+            $tindakan,
+            $diagnosa,
+            $bb,
+            $tb,
+            $td,
+            $nadi,
+            $nafas,
+            $spo2,
+            $jalan_nafas,
+            $mallampati_json,
+            $leher,
+            $alergi_check,
+            $skala_nyeri,
+            $iv_line_tempat,
+            $iv_line_cairan,
+            $status_puasa,
+            $lab,
+            $asa_score,
+            $gcs_e,
+            $gcs_v,
+            $gcs_m,
+            $rencana_mulai,
+            $rencana_selesai,
+            $monitoring_json,
             $regno
         );
     } else {
@@ -282,12 +308,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             asa_score, gcs_e, gcs_v, gcs_m, rencana_mulai, rencana_selesai, monitoring_data
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt1 = $conn->prepare($sql1);
-        $stmt1->bind_param("sssssssssddsiissssisisssiiissss",
-            $no_rm, $nama, $tgl_lahir, $jk, $regno, $waktu_input,
-            $ruangan, $tindakan, $diagnosa, $bb, $tb, $td, $nadi, $nafas, $spo2,
-            $jalan_nafas, $mallampati_json, $leher, $alergi_check, $skala_nyeri,
-            $iv_line_tempat, $iv_line_cairan, $status_puasa, $lab,
-            $asa_score, $gcs_e, $gcs_v, $gcs_m, $rencana_mulai, $rencana_selesai, $monitoring_json
+        $stmt1->bind_param(
+            "sssssssssddsiissssisisssiiissss",
+            $no_rm,
+            $nama,
+            $tgl_lahir,
+            $jk,
+            $regno,
+            $waktu_input,
+            $ruangan,
+            $tindakan,
+            $diagnosa,
+            $bb,
+            $tb,
+            $td,
+            $nadi,
+            $nafas,
+            $spo2,
+            $jalan_nafas,
+            $mallampati_json,
+            $leher,
+            $alergi_check,
+            $skala_nyeri,
+            $iv_line_tempat,
+            $iv_line_cairan,
+            $status_puasa,
+            $lab,
+            $asa_score,
+            $gcs_e,
+            $gcs_v,
+            $gcs_m,
+            $rencana_mulai,
+            $rencana_selesai,
+            $monitoring_json
         );
     }
 
@@ -306,12 +359,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 nama_dokter=?, ttd_dokter=?, nama_anestesi=?, ttd_anestesi=?
                 WHERE regno=?";
             $stmt2 = $conn->prepare($sql2);
-            $stmt2->bind_param("ssiiiiiiiiiiisssssss", 
-                $jam_masuk_pasca, $vital_sign_grid_pasca, $vas_score_pasca,
-                $a1, $a2, $a3, $a4, $a5, $total_aldrette,
-                $s1, $s2, $s3, $total_steward,
-                $catatan_bawah, $keputusan_val,
-                $nama_dokter, $ttd_dokter, $nama_anestesi, $ttd_anestesi,
+            $stmt2->bind_param(
+                "ssiiiiiiiiiiisssssss",
+                $jam_masuk_pasca,
+                $vital_sign_grid_pasca,
+                $vas_score_pasca,
+                $a1,
+                $a2,
+                $a3,
+                $a4,
+                $a5,
+                $total_aldrette,
+                $s1,
+                $s2,
+                $s3,
+                $total_steward,
+                $catatan_bawah,
+                $keputusan_val,
+                $nama_dokter,
+                $ttd_dokter,
+                $nama_anestesi,
+                $ttd_anestesi,
                 $regno
             );
         } else {
@@ -324,12 +392,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 nama_dokter, ttd_dokter, nama_anestesi, ttd_anestesi
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt2 = $conn->prepare($sql2);
-            $stmt2->bind_param("sssiiiiiiiiiiissssss", 
-                $regno, $jam_masuk_pasca, $vital_sign_grid_pasca, $vas_score_pasca,
-                $a1, $a2, $a3, $a4, $a5, $total_aldrette,
-                $s1, $s2, $s3, $total_steward,
-                $catatan_bawah, $keputusan_val,
-                $nama_dokter, $ttd_dokter, $nama_anestesi, $ttd_anestesi
+            $stmt2->bind_param(
+                "sssiiiiiiiiiiissssss",
+                $regno,
+                $jam_masuk_pasca,
+                $vital_sign_grid_pasca,
+                $vas_score_pasca,
+                $a1,
+                $a2,
+                $a3,
+                $a4,
+                $a5,
+                $total_aldrette,
+                $s1,
+                $s2,
+                $s3,
+                $total_steward,
+                $catatan_bawah,
+                $keputusan_val,
+                $nama_dokter,
+                $ttd_dokter,
+                $nama_anestesi,
+                $ttd_anestesi
             );
         }
 
@@ -340,7 +424,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $status_simpan = "error";
             $pesan_simpan = "Gagal menyimpan Pasca Sedasi: " . $stmt2->error;
         }
-
     } else {
         $status_simpan = "error";
         $pesan_simpan = "Gagal menyimpan Status Sedasi: " . $stmt1->error;
@@ -350,6 +433,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -358,75 +442,352 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; margin: 20px; background-color: #f4f6f9; }
-        .container { width: 210mm; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-        th, td { border: 1px solid #333; padding: 4px; vertical-align: top; }
-        .no-border { border: none; }
-        .header-green { background: linear-gradient(90deg, #92D050, #7db342); font-weight: bold; text-align: center; padding: 8px; border: 1px solid black; color: #000; }
-        .header-black { background: #2c3e50; color: white; font-weight: bold; text-align: center; text-transform: uppercase; padding: 5px; }
-        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 12px;
+            margin: 20px;
+            background-color: #f4f6f9;
+        }
+
+        .container {
+            width: 210mm;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5px;
+        }
+
+        th,
+        td {
+            border: 1px solid #333;
+            padding: 4px;
+            vertical-align: top;
+        }
+
+        .no-border {
+            border: none;
+        }
+
+        .header-green {
+            background: linear-gradient(90deg, #92D050, #7db342);
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            border: 1px solid black;
+            color: #000;
+        }
+
+        .header-black {
+            background: #2c3e50;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            padding: 5px;
+        }
+
         /* Inputs */
-        input[type="text"], input[type="number"], input[type="time"], input[type="date"] { border: none; border-bottom: 1px dashed #aaa; width: 80%; background: transparent; font-family: inherit; font-size: inherit; }
-        input:focus { outline: none; border-bottom: 1px solid #2980b9; background-color: #f0f8ff; }
-        textarea { resize: vertical; border: 1px solid #ddd; border-radius: 4px; width: 98%; height: 40px; }
-        .full-width { width: 98% !important; }
-        
+        input[type="text"],
+        input[type="number"],
+        input[type="time"],
+        input[type="date"] {
+            border: none;
+            border-bottom: 1px dashed #aaa;
+            width: 80%;
+            background: transparent;
+            font-family: inherit;
+            font-size: inherit;
+        }
+
+        input:focus {
+            outline: none;
+            border-bottom: 1px solid #2980b9;
+            background-color: #f0f8ff;
+        }
+
+        textarea {
+            resize: vertical;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 98%;
+            height: 40px;
+        }
+
+        .full-width {
+            width: 98% !important;
+        }
+
         /* Layout */
-        .logo-section { display: flex; align-items: center; }
-        .logo-img { width: 50px; height: 50px; margin-right: 10px; display: flex; align-items: center; justify-content: center; }
-        .title { text-align: center; flex-grow: 1; }
-        .title h2 { margin: 0; font-size: 18px; color: #2c3e50; }
-        
+        .logo-section {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-img {
+            width: 50px;
+            height: 50px;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .title {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .title h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+
         /* Mallampati & Pain */
-        .mallampati-viz { display: flex; justify-content: space-around; margin-top: 5px; }
-        .pain-scale-container { display: flex; justify-content: space-around; align-items: center; margin: 5px 0; }
-        .pain-option { text-align: center; cursor: pointer; }
-        .pain-emoji { font-size: 22px; display: block; margin-bottom: 2px; }
-        
+        .mallampati-viz {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 5px;
+        }
+
+        .pain-scale-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .pain-option {
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .pain-emoji {
+            font-size: 22px;
+            display: block;
+            margin-bottom: 2px;
+        }
+
         /* Monitoring Table */
-        .monitoring-table td { height: 15px; padding: 0; text-align: center; vertical-align: middle; }
-        .monitoring-table input[type="text"] { width: 100%; border: none; text-align: center; }
-        
+        .monitoring-table td {
+            height: 15px;
+            padding: 0;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .monitoring-table input[type="text"] {
+            width: 100%;
+            border: none;
+            text-align: center;
+        }
+
         /* Chart Grids (Shared Styles) */
-        .chart-grid td, .chart-grid-pasca td { height: 12px; border: 1px solid #ccc; }
-        .chart-label { font-size: 9px; text-align: right; padding-right: 2px; border-right: 1px solid black; background: #eee; }
-        
+        .chart-grid td,
+        .chart-grid-pasca td {
+            height: 12px;
+            border: 1px solid #ccc;
+        }
+
+        .chart-label {
+            font-size: 9px;
+            text-align: right;
+            padding-right: 2px;
+            border-right: 1px solid black;
+            background: #eee;
+        }
+
         /* Pasca Sedasi Specifics */
-        .bg-green-soft { background: linear-gradient(90deg, #92D050, #7db342); color: black; }
-        .bg-grey { background-color: #f1f3f5; }
-        .col-symbol { width: 35px; text-align: center; font-weight: bold; }
-        .col-val { width: 30px; text-align: center; font-size: 9px; }
-        .col-grid { width: 1.8%; border: 1px solid #ddd; cursor: pointer; transition: background 0.1s; } 
-        .col-grid:hover { background-color: #e3f2fd; }
-        .col-vas { width: 70px; text-align: center; font-weight: bold; font-size: 11px; padding: 0 !important; }
-        .vas-label { display: block; width: 100%; height: 100%; cursor: pointer; padding-top: 2px; }
-        .vas-label input[type="radio"] { display: none; }
-        .vas-label span { display: block; width: 100%; height: 100%; }
-        .vas-label input[type="radio"]:checked + span { background-color: #92D050; color: black; font-weight: bold; }
-        .col-score-label { width: 90px; padding-left: 4px; font-size: 9px; line-height: 1.1; }
-        .col-score-input { width: 35px; }
-        .input-dotted { border-bottom: 1px dashed black; width: auto; min-width: 200px; display: inline-block; }
-        
+        .bg-green-soft {
+            background: linear-gradient(90deg, #92D050, #7db342);
+            color: black;
+        }
+
+        .bg-grey {
+            background-color: #f1f3f5;
+        }
+
+        .col-symbol {
+            width: 35px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .col-val {
+            width: 30px;
+            text-align: center;
+            font-size: 9px;
+        }
+
+        .col-grid {
+            width: 1.8%;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .col-grid:hover {
+            background-color: #e3f2fd;
+        }
+
+        .col-vas {
+            width: 70px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 0 !important;
+        }
+
+        .vas-label {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            padding-top: 2px;
+        }
+
+        .vas-label input[type="radio"] {
+            display: none;
+        }
+
+        .vas-label span {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .vas-label input[type="radio"]:checked+span {
+            background-color: #92D050;
+            color: black;
+            font-weight: bold;
+        }
+
+        .col-score-label {
+            width: 90px;
+            padding-left: 4px;
+            font-size: 9px;
+            line-height: 1.1;
+        }
+
+        .col-score-input {
+            width: 35px;
+        }
+
+        .input-dotted {
+            border-bottom: 1px dashed black;
+            width: auto;
+            min-width: 200px;
+            display: inline-block;
+        }
+
         /* Signature */
-        .signature-pad { border: 1px dashed #aaa; background-color: #fdfdfd; cursor: crosshair; display: block; margin: 5px auto; border-radius: 4px; }
-        .btn-clear { background-color: #ffcccc; border: 1px solid #e74c3c; color: #c0392b; font-size: 9px; padding: 2px 8px; cursor: pointer; margin-top: 2px; border-radius: 3px; }
-        .input-name { border-bottom: 1px dotted black !important; text-align: center; width: 90% !important; margin-top: 5px; }
+        .signature-pad {
+            border: 1px dashed #aaa;
+            background-color: #fdfdfd;
+            cursor: crosshair;
+            display: block;
+            margin: 5px auto;
+            border-radius: 4px;
+        }
+
+        .btn-clear {
+            background-color: #ffcccc;
+            border: 1px solid #e74c3c;
+            color: #c0392b;
+            font-size: 9px;
+            padding: 2px 8px;
+            cursor: pointer;
+            margin-top: 2px;
+            border-radius: 3px;
+        }
+
+        .input-name {
+            border-bottom: 1px dotted black !important;
+            text-align: center;
+            width: 90% !important;
+            margin-top: 5px;
+        }
 
         /* Buttons */
-        .btn-container { text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 15px; }
-        .btn-modern { padding: 12px 30px; font-size: 14px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; transition: all 0.3s ease; color: white; display: flex; align-items: center; gap: 8px; }
-        .btn-save { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4); }
-        .btn-print { background: linear-gradient(135deg, #2980b9 0%, #3498db 100%); box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4); }
+        .btn-container {
+            text-align: center;
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .btn-modern {
+            padding: 12px 30px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
 
         @media print {
-            @page { size: A4; margin: 10mm; }
-            html, body { width: 210mm; height: 297mm; }
-            .container { width: 100%; box-shadow: none; margin: 0; padding: 0; border: none; transform: scale(0.95); transform-origin: top left; }
-            .btn-container, .btn-clear, .swal2-container { display: none !important; }
-            input, textarea { border: none !important; }
-            ::placeholder { color: transparent; }
-            .signature-pad { border: none !important; }
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+
+            html,
+            body {
+                width: 210mm;
+                height: 297mm;
+            }
+
+            .container {
+                width: 100%;
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                border: none;
+                transform: scale(0.95);
+                transform-origin: top left;
+            }
+
+            .btn-container,
+            .btn-clear,
+            .swal2-container {
+                display: none !important;
+            }
+
+            input,
+            textarea {
+                border: none !important;
+            }
+
+            ::placeholder {
+                color: transparent;
+            }
+
+            .signature-pad {
+                border: none !important;
+            }
         }
     </style>
 </head>
@@ -450,7 +811,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             </div>
                         </div>
                     </td>
-                    <td width="40%" style="border: 1px solid #ccc; padding: 5px; border-radius: 4px;">
+                    <td width="40%" style="border: 1px solid #000; padding: 5px; border-radius: 4px;">
                         <table class="no-border" style="width: 100%; margin: 0;">
                             <tr>
                                 <td class="no-border" width="30%">No. RM</td>
@@ -726,17 +1087,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </tr>
                 <?php endforeach; ?>
             </table>
-            
+
             <div style="font-size: 11px; margin-top: 5px; text-align: center; color: #555;">
                 Mulai sedasi x &rightarrow; &nbsp;&nbsp;&nbsp;
                 Selesai sedasi x &leftarrow; &nbsp;&nbsp;&nbsp;
                 Mulai prosedur o &rightarrow; &nbsp;&nbsp;&nbsp;
                 Selesai prosedur &leftarrow; o
             </div>
-
-            <br>
+        </div>
+        <div class="container" style="margin-top: 20px;">
             <div class="header-black" style="background: #2c3e50; border-top: 5px solid #fff;">PENILAIAN PASCA SEDASI</div>
-            
+
             <div style="border: 1px solid black; border-top: none; padding: 5px; margin-bottom: -1px;">
                 Jam masuk ruang pulih : <input type="time" name="jam_masuk_pasca" value="<?php echo htmlspecialchars($jam_masuk_pasca); ?>" class="input-dotted">
             </div>
@@ -748,7 +1109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <th class="col-val">R</th>
                         <th class="col-val">N</th>
                         <th class="col-val">TD</th>
-                        <?php for($i=0; $i<35; $i++): ?>
+                        <?php for ($i = 0; $i < 35; $i++): ?>
                             <th class="col-grid"></th>
                         <?php endfor; ?>
                         <th class="col-vas">VAS/FLACC<br>/ CRIES</th>
@@ -764,7 +1125,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         ['', '50', '', '180', '8', '😣', 'Pernapasan', false, false, 'aldrette_pernapasan', $a3],
                         ['N ●', '45', '', '160', '7', '😣', 'Kesadaran', false, false, 'aldrette_kesadaran', $a4],
                         ['Sis ▼', '40', '180', '140', '6', '☹️', 'Warna<br>kulit', false, false, 'aldrette_warna_kulit', $a5],
-                        ['Dis ▲', '35', '160', '120', '5', '☹️', 'TOTAL', true, false, '', ''], 
+                        ['Dis ▲', '35', '160', '120', '5', '☹️', 'TOTAL', true, false, '', ''],
                         ['R +', '30', '140', '100', '4', '😐', '<strong>Skor<br>Steward</strong>', false, true, '', ''],
                         ['', '25', '120', '80', '3', '😐', 'Kesadaran', false, false, 'steward_kesadaran', $s1],
                         ['', '20', '100', '60', '2', '🙂', 'Pernapasan', false, false, 'steward_pernapasan', $s2],
@@ -773,70 +1134,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         ['', '5', '', '0', '', '', '', false, false, '', '']
                     ];
 
-                    foreach ($rows as $rIndex => $row): 
+                    foreach ($rows as $rIndex => $row):
                         $symbolLabel = $row[0];
-                        $jsSymbol = '•'; 
-                        if(strpos($symbolLabel, '●') !== false) $jsSymbol = '●';
-                        if(strpos($symbolLabel, '▼') !== false) $jsSymbol = '▼';
-                        if(strpos($symbolLabel, '▲') !== false) $jsSymbol = '▲';
-                        if(strpos($symbolLabel, '+') !== false) $jsSymbol = '+';
-                        
+                        $jsSymbol = '•';
+                        if (strpos($symbolLabel, '●') !== false) $jsSymbol = '●';
+                        if (strpos($symbolLabel, '▼') !== false) $jsSymbol = '▼';
+                        if (strpos($symbolLabel, '▲') !== false) $jsSymbol = '▲';
+                        if (strpos($symbolLabel, '+') !== false) $jsSymbol = '+';
+
                         $isTotal = $row[7];
                         $isHeader = $row[8];
                         $inputName = $row[9];
-                        $savedValue = $row[10]; 
+                        $savedValue = $row[10];
                         $vasValue = $row[4];
                     ?>
-                    <tr>
-                        <td class="col-symbol"><?php echo $row[0]; ?></td>
-                        <td class="col-val bg-grey"><?php echo $row[1]; ?></td>
-                        <td class="col-val bg-grey"><?php echo $row[2]; ?></td>
-                        <td class="col-val bg-grey"><?php echo $row[3]; ?></td>
-                        
-                        <?php for($k=0; $k<35; $k++): 
-                            $gridSymbol = $vital_sign_grid_arr[$rIndex][$k] ?? '';
-                        ?>
-                            <td class="col-grid" onclick="toggleSymbol(this, '<?php echo $jsSymbol; ?>', 'grid_chart_pasca')" style="<?php echo $gridSymbol ? 'color:blue; font-weight:bold;' : ''; ?>">
-                                <?php echo $gridSymbol; ?>
-                                <input type="hidden" name="grid_chart_pasca[<?php echo $rIndex; ?>][<?php echo $k; ?>]" value="<?php echo $gridSymbol; ?>">
-                            </td>
-                        <?php endfor; ?>
-                        
-                        <?php if ($rIndex < count($rows) - 1): ?>
-                            <td class="col-vas">
-                                <?php if($vasValue !== ''): ?>
-                                    <label class="vas-label" title="Pilih Skala Nyeri <?php echo $vasValue; ?>">
-                                        <input type="radio" name="skala_vas_pasca" value="<?php echo $vasValue; ?>" <?php echo ($vas_score_pasca == $vasValue && $vasValue !== '') ? 'checked' : ''; ?>>
-                                        <span>
-                                            <?php echo $vasValue; ?> 
-                                            <?php if($row[5]): ?>
-                                                <span class="face-icon"><?php echo $row[5]; ?></span>
-                                            <?php endif; ?>
-                                        </span>
-                                    </label>
-                                <?php endif; ?>
-                            </td>
-                            <td class="col-score-label" style="<?php echo ($isHeader || $isTotal) ? 'text-align:center; font-weight:bold;' : ''; ?>">
-                                <?php echo $row[6]; ?>
-                            </td>
-                            <td class="col-score-input">
-                                <?php if(!$isHeader && $inputName != ''): ?>
-                                    <input type="number" name="<?php echo $inputName; ?>" value="<?php echo ($savedValue !== "") ? $savedValue : ''; ?>" style="text-align: center; height: 100%;">
-                                <?php elseif($isTotal): ?>
-                                    <span style="font-size: 10px; color: #555;">(Auto)</span>
-                                <?php endif; ?>
-                            </td>
-                        <?php else: ?>
-                            <td colspan="3" style="border:none; border-left: 1px solid black;"></td>
-                        <?php endif; ?>
-                    </tr>
+                        <tr>
+                            <td class="col-symbol"><?php echo $row[0]; ?></td>
+                            <td class="col-val bg-grey"><?php echo $row[1]; ?></td>
+                            <td class="col-val bg-grey"><?php echo $row[2]; ?></td>
+                            <td class="col-val bg-grey"><?php echo $row[3]; ?></td>
+
+                            <?php for ($k = 0; $k < 35; $k++):
+                                $gridSymbol = $vital_sign_grid_arr[$rIndex][$k] ?? '';
+                            ?>
+                                <td class="col-grid" onclick="toggleSymbol(this, '<?php echo $jsSymbol; ?>', 'grid_chart_pasca')" style="<?php echo $gridSymbol ? 'color:blue; font-weight:bold;' : ''; ?>">
+                                    <?php echo $gridSymbol; ?>
+                                    <input type="hidden" name="grid_chart_pasca[<?php echo $rIndex; ?>][<?php echo $k; ?>]" value="<?php echo $gridSymbol; ?>">
+                                </td>
+                            <?php endfor; ?>
+
+                            <?php if ($rIndex < count($rows) - 1): ?>
+                                <td class="col-vas">
+                                    <?php if ($vasValue !== ''): ?>
+                                        <label class="vas-label" title="Pilih Skala Nyeri <?php echo $vasValue; ?>">
+                                            <input type="radio" name="skala_vas_pasca" value="<?php echo $vasValue; ?>" <?php echo ($vas_score_pasca == $vasValue && $vasValue !== '') ? 'checked' : ''; ?>>
+                                            <span>
+                                                <?php echo $vasValue; ?>
+                                                <?php if ($row[5]): ?>
+                                                    <span class="face-icon"><?php echo $row[5]; ?></span>
+                                                <?php endif; ?>
+                                            </span>
+                                        </label>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="col-score-label" style="<?php echo ($isHeader || $isTotal) ? 'text-align:center; font-weight:bold;' : ''; ?>">
+                                    <?php echo $row[6]; ?>
+                                </td>
+                                <td class="col-score-input">
+                                    <?php if (!$isHeader && $inputName != ''): ?>
+                                        <input type="number" name="<?php echo $inputName; ?>" value="<?php echo ($savedValue !== "") ? $savedValue : ''; ?>" style="text-align: center; height: 100%;">
+                                    <?php elseif ($isTotal): ?>
+                                        <span style="font-size: 10px; color: #555;">(Auto)</span>
+                                    <?php endif; ?>
+                                </td>
+                            <?php else: ?>
+                                <td colspan="3" style="border:none; border-left: 1px solid black;"></td>
+                            <?php endif; ?>
+                        </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
 
             <br>
             <div style="border: 1px solid black; padding: 5px; height: 30px;">
-                <strong>Catatan:</strong> 
+                <strong>Catatan:</strong>
                 <input type="text" name="catatan_bawah" value="<?php echo htmlspecialchars($catatan_bawah); ?>" style="width: 90%;">
             </div>
 
@@ -858,13 +1219,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             </label>
                         </div>
                     </td>
-                    
+
                     <td width="32%" style="text-align: center; vertical-align: top; border-left: 1px solid black; padding: 0;">
                         <div style="background: #e9ecef; padding: 5px; font-weight: bold; border-bottom: 1px solid black;">
                             Tanda Tangan Dokter
                         </div>
                         <div style="padding: 5px;">
-                            <?php if(!empty($ttd_dokter)): ?>
+                            <?php if (!empty($ttd_dokter)): ?>
                                 <img src="<?php echo $ttd_dokter; ?>" id="imgDokter" style="height: 70px; display: block; margin: 0 auto;">
                                 <canvas id="canvasDokter" class="signature-pad" width="200" height="70" style="display: none;"></canvas>
                                 <button type="button" class="btn-clear" onclick="enableDraw('canvasDokter', 'imgDokter')">Ubah Tanda Tangan</button>
@@ -872,18 +1233,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <canvas id="canvasDokter" class="signature-pad" width="200" height="70"></canvas>
                                 <button type="button" class="btn-clear" onclick="clearCanvas('canvasDokter')">Hapus</button>
                             <?php endif; ?>
-                            
+
                             <input type="text" name="nama_dokter" value="<?php echo htmlspecialchars($nama_dokter); ?>" class="input-name" placeholder="( Nama Dokter )">
                             <input type="hidden" name="ttd_dokter_base64" id="ttdDokterBase64" value="<?php echo $ttd_dokter; ?>">
                         </div>
                     </td>
-                    
+
                     <td width="33%" style="text-align: center; vertical-align: top; border-left: 1px solid black; padding: 0;">
                         <div style="background: #e9ecef; padding: 5px; font-weight: bold; border-bottom: 1px solid black;">
                             Tanda Tangan Penata Anestesi
                         </div>
                         <div style="padding: 5px;">
-                            <?php if(!empty($ttd_anestesi)): ?>
+                            <?php if (!empty($ttd_anestesi)): ?>
                                 <img src="<?php echo $ttd_anestesi; ?>" id="imgAnestesi" style="height: 70px; display: block; margin: 0 auto;">
                                 <canvas id="canvasAnestesi" class="signature-pad" width="200" height="70" style="display: none;"></canvas>
                                 <button type="button" class="btn-clear" onclick="enableDraw('canvasAnestesi', 'imgAnestesi')">Ubah Tanda Tangan</button>
@@ -891,7 +1252,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <canvas id="canvasAnestesi" class="signature-pad" width="200" height="70"></canvas>
                                 <button type="button" class="btn-clear" onclick="clearCanvas('canvasAnestesi')">Hapus</button>
                             <?php endif; ?>
-                            
+
                             <input type="text" name="nama_anestesi" value="<?php echo htmlspecialchars($nama_anestesi); ?>" class="input-name" placeholder="( Nama Penata )">
                             <input type="hidden" name="ttd_anestesi_base64" id="ttdAnestesiBase64" value="<?php echo $ttd_anestesi; ?>">
                         </div>
@@ -932,21 +1293,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // --- 2. Logic Signature Pad ---
         function initSignaturePad(canvasId) {
             var canvas = document.getElementById(canvasId);
-            if(!canvas) return; 
+            if (!canvas) return;
             var ctx = canvas.getContext('2d');
             var isDrawing = false;
-            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
 
-            function startDraw(e) { isDrawing = true; ctx.beginPath(); var pos = getPos(canvas, e); ctx.moveTo(pos.x, pos.y); e.preventDefault(); }
-            function draw(e) { if (!isDrawing) return; var pos = getPos(canvas, e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); e.preventDefault(); }
-            function endDraw() { isDrawing = false; updateHiddenInput(canvasId); }
+            function startDraw(e) {
+                isDrawing = true;
+                ctx.beginPath();
+                var pos = getPos(canvas, e);
+                ctx.moveTo(pos.x, pos.y);
+                e.preventDefault();
+            }
+
+            function draw(e) {
+                if (!isDrawing) return;
+                var pos = getPos(canvas, e);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+                e.preventDefault();
+            }
+
+            function endDraw() {
+                isDrawing = false;
+                updateHiddenInput(canvasId);
+            }
+
             function getPos(canvas, e) {
                 var rect = canvas.getBoundingClientRect();
-                if (e.touches) { return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }; } 
-                else { return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+                if (e.touches) {
+                    return {
+                        x: e.touches[0].clientX - rect.left,
+                        y: e.touches[0].clientY - rect.top
+                    };
+                } else {
+                    return {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                }
             }
-            canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mouseout', endDraw);
-            canvas.addEventListener('touchstart', startDraw); canvas.addEventListener('touchmove', draw); canvas.addEventListener('touchend', endDraw);
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('mouseout', endDraw);
+            canvas.addEventListener('touchstart', startDraw);
+            canvas.addEventListener('touchmove', draw);
+            canvas.addEventListener('touchend', endDraw);
         }
 
         function updateHiddenInput(canvasId) {
@@ -960,7 +1354,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             var canvas = document.getElementById(canvasId);
             var ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            updateHiddenInput(canvasId); 
+            updateHiddenInput(canvasId);
         }
 
         function enableDraw(canvasId, imgId) {
@@ -972,8 +1366,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         // Init Signature Pads
-        if(document.getElementById('canvasDokter') && document.getElementById('canvasDokter').style.display !== 'none') initSignaturePad('canvasDokter');
-        if(document.getElementById('canvasAnestesi') && document.getElementById('canvasAnestesi').style.display !== 'none') initSignaturePad('canvasAnestesi');
+        if (document.getElementById('canvasDokter') && document.getElementById('canvasDokter').style.display !== 'none') initSignaturePad('canvasDokter');
+        if (document.getElementById('canvasAnestesi') && document.getElementById('canvasAnestesi').style.display !== 'none') initSignaturePad('canvasAnestesi');
 
         // --- 3. Logic Submit & SweetAlert ---
         document.getElementById('mainForm').addEventListener('submit', function() {
@@ -1013,4 +1407,5 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </script>
 
 </body>
+
 </html>
