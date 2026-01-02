@@ -446,7 +446,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             font-family: 'Segoe UI', Arial, sans-serif;
             font-size: 12px;
             margin: 20px;
-            background-color: #f4f6f9;
         }
 
         .container {
@@ -767,7 +766,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 padding: 0;
                 border: none;
                 transform: scale(0.95);
-                transform-origin: top left;
+                transform-origin: top;
+                zoom: 0.77;
             }
 
             .btn-container,
@@ -787,6 +787,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             .signature-pad {
                 border: none !important;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
     </style>

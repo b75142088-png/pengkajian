@@ -5,7 +5,8 @@ require_once 'db_connection.php';
 $pesan_sukses = "";
 $error_message = "";
 $signature_preview = "";
-$form_data = []; // Array untuk menampung data yang akan ditampilkan
+$form_data = []; 
+$data_id = ""; // Variabel untuk menyimpan ID jika mode edit
 
 // --- LOGIKA PENCARIAN DATA (GET) ---
 
@@ -15,16 +16,12 @@ $url_nama  = $_GET['nama'] ?? '';
 $url_norm  = $_GET['no_rm'] ?? '';
 $url_tgl   = $_GET['tgl_lahir'] ?? '';
 
-// 2. Konversi Tanggal dari format URL (misal: 20 Juli 2001) ke format Database (Y-m-d)
+// 2. Konversi Tanggal dari format URL
 if (!empty($url_tgl)) {
-    // Mapping bulan Indonesia ke Inggris agar bisa diparsing strtotime
     $bulan_indo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     $bulan_inggris = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
     $tgl_bersih = str_ireplace($bulan_indo, $bulan_inggris, $url_tgl);
     $timestamp = strtotime($tgl_bersih);
-
-    // Jika berhasil diparsing, ubah ke format Y-m-d, jika tidak biarkan apa adanya (untuk input text biasa)
     if ($timestamp) {
         $url_tgl = date('Y-m-d', $timestamp);
     }
@@ -34,15 +31,16 @@ if (!empty($url_tgl)) {
 $found_in_db = false;
 if (!empty($url_regno)) {
     try {
+        // Ambil data terakhir berdasarkan regno
         $stmt_check = $pdo->prepare("SELECT * FROM asesmen_pra_anestesi WHERE regno = :regno ORDER BY id DESC LIMIT 1");
         $stmt_check->execute([':regno' => $url_regno]);
         $data_db = $stmt_check->fetch(PDO::FETCH_ASSOC);
 
         if ($data_db) {
-            $form_data = $data_db; // Pakai data dari Database
+            $form_data = $data_db; 
             $found_in_db = true;
-
-            // Load tanda tangan jika ada di database
+            $data_id = $data_db['id']; // SIMPAN ID UNTUK UPDATE
+            
             if (!empty($data_db['signature_image'])) {
                 $signature_preview = $data_db['signature_image'];
             }
@@ -52,7 +50,7 @@ if (!empty($url_regno)) {
     }
 }
 
-// 4. Jika Tidak Ada di DB, Pakai Data URL sebagai Default
+// 4. Jika Tidak Ada di DB, Pakai Data URL
 if (!$found_in_db) {
     $form_data['regno'] = $url_regno;
     $form_data['nama_pasien'] = $url_nama;
@@ -60,30 +58,22 @@ if (!$found_in_db) {
     $form_data['tgl_lahir'] = $url_tgl;
 }
 
-// --- FUNGSI HELPER UNTUK MENAMPILKAN DATA DI HTML ---
+// --- FUNGSI HELPER ---
 function getValue($field)
 {
     global $form_data;
-    if (isset($_POST[$field])) {
-        return htmlspecialchars($_POST[$field]);
-    }
-    if (isset($form_data[$field])) {
-        return htmlspecialchars($form_data[$field]);
-    }
+    if (isset($_POST[$field])) return htmlspecialchars($_POST[$field]);
+    if (isset($form_data[$field])) return htmlspecialchars($form_data[$field]);
     return '';
 }
 
 function getChecked($field, $val)
 {
     global $form_data;
-    // Cek POST dulu
     if (isset($_POST[$field])) {
-        if (is_array($_POST[$field])) {
-            return in_array($val, $_POST[$field]) ? 'checked' : '';
-        }
+        if (is_array($_POST[$field])) return in_array($val, $_POST[$field]) ? 'checked' : '';
         return ($_POST[$field] == $val) ? 'checked' : '';
     }
-    // Cek Data DB/URL
     if (isset($form_data[$field])) {
         return ($form_data[$field] == $val) ? 'checked' : '';
     }
@@ -93,85 +83,14 @@ function getChecked($field, $val)
 // --- LOGIKA SIMPAN DATA (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
-        // Ambil data TTD baru jika ada
         $signature_image_post = $_POST['signature_image'] ?? '';
-
-        // Jika user tanda tangan baru, pakai itu. Jika tidak, pertahankan yang lama (jika ada)
         if (!empty($signature_image_post)) {
             $signature_preview = $signature_image_post;
         } elseif (isset($form_data['signature_image'])) {
             $signature_image_post = $form_data['signature_image'];
         }
 
-        // Query INSERT
-        $sql = "INSERT INTO asesmen_pra_anestesi (
-            no_rm, nama_pasien, tgl_lahir, jk_header, regno, ruangan, tgl_asesmen, jam_asesmen,
-            umur, jk_penata, menikah, pekerjaan,
-            rokok, rokok_jumlah, kopi, kopi_jumlah, alkohol, alkohol_jumlah, olahraga, olahraga_jumlah,
-            obat_resep, obat_bebas, obat_bebas_ket, aspirin, aspirin_dosis, painkiller, painkiller_dosis,
-            steroid, steroid_ket, alergi_obat, alergi_obat_ket,
-            alergi_lateks, alergi_plester, alergi_makanan,
-            rk_perdarahan_abnormal, rk_pembekuan_abnormal, rk_masalah_pembiusan, rk_jantung_koroner, rk_diabetes,
-            rk_serangan_jantung, rk_hipertensi, rk_tbc, rk_penyakit_berat_lain, rk_penjelasan_ya,
-            bahasa_indo, bahasa_lain, bahasa_lain_ket, kom_mata, kom_telinga, kom_bicara,
-            rp_perdarahan_abnormal, rp_pembekuan_abnormal, rp_maag, rp_anemia, rp_sesak, rp_asma, rp_pingsan,
-            rp_nyeri_dada, rp_hepatitis, rp_hipertensi, rp_ngorok, rp_penyakit_berat_lain, rp_diabetes, rp_penjelasan_ya,
-            transfusi, transfusi_tahun, hiv_check, hiv_tahun, hiv_res,
-            lensa_kontak, kacamata, alat_bantu_dengar, gigi_palsu,
-            op_lokal_ket, op_regional_ket, op_umum_ket,
-            terakhir_periksa_tgl, terakhir_periksa_tempat, terakhir_periksa_penyakit,
-            jml_hamil, jml_anak, menstruasi, menyusui,
-            anamnesis,
-            dok_hilang_gigi, dok_masalah_leher, dok_leher_pendek, dok_batuk, dok_sesak, dok_infeksi_nafas, dok_mens_abnormal, dok_stroke,
-            dok_sakit_dada, dok_jantung_abnormal, dok_muntah, dok_susah_kencing, dok_kejang, dok_hamil, dok_pingsan, dok_obesitas,
-            dok_keterangan,
-            ku_kesadaran, ku_visus, ku_faring, ku_gigi_palsu, ku_keterangan,
-            fisik_tinggi, fisik_berat, fisik_td, fisik_nadi, fisik_rr, fisik_suhu,
-            fisik_paru, fisik_jantung, fisik_abdomen, fisik_ekstrimitas, fisik_neurologi, fisik_lain,
-            lab_hb_ht, lab_pt_aptt, lab_kehamilan, lab_kalium, lab_ureum, lab_keterangan,
-            lab_rontgen, lab_ekg, lab_nacl, lab_co2, lab_lain,
-            masalah, asa, saran,
-            ane_umum, au_iv, au_sm, au_lma, au_ett,
-            ane_reg, ar_sab, ar_epi, ar_cse, ar_pnb,
-            ane_umum_reg,
-            puasa_jam, puasa_tgl,
-            signature_image, nama_dokter_ttd
-        ) VALUES (
-            :no_rm, :nama_pasien, :tgl_lahir, :jk_header, :regno, :ruangan, :tgl_asesmen, :jam_asesmen,
-            :umur, :jk_penata, :menikah, :pekerjaan,
-            :rokok, :rokok_jumlah, :kopi, :kopi_jumlah, :alkohol, :alkohol_jumlah, :olahraga, :olahraga_jumlah,
-            :obat_resep, :obat_bebas, :obat_bebas_ket, :aspirin, :aspirin_dosis, :painkiller, :painkiller_dosis,
-            :steroid, :steroid_ket, :alergi_obat, :alergi_obat_ket,
-            :alergi_lateks, :alergi_plester, :alergi_makanan,
-            :rk_perdarahan_abnormal, :rk_pembekuan_abnormal, :rk_masalah_pembiusan, :rk_jantung_koroner, :rk_diabetes,
-            :rk_serangan_jantung, :rk_hipertensi, :rk_tbc, :rk_penyakit_berat_lain, :rk_penjelasan_ya,
-            :bahasa_indo, :bahasa_lain, :bahasa_lain_ket, :kom_mata, :kom_telinga, :kom_bicara,
-            :rp_perdarahan_abnormal, :rp_pembekuan_abnormal, :rp_maag, :rp_anemia, :rp_sesak, :rp_asma, :rp_pingsan,
-            :rp_nyeri_dada, :rp_hepatitis, :rp_hipertensi, :rp_ngorok, :rp_penyakit_berat_lain, :rp_diabetes, :rp_penjelasan_ya,
-            :transfusi, :transfusi_tahun, :hiv_check, :hiv_tahun, :hiv_res,
-            :lensa_kontak, :kacamata, :alat_bantu_dengar, :gigi_palsu,
-            :op_lokal_ket, :op_regional_ket, :op_umum_ket,
-            :terakhir_periksa_tgl, :terakhir_periksa_tempat, :terakhir_periksa_penyakit,
-            :jml_hamil, :jml_anak, :menstruasi, :menyusui,
-            :anamnesis,
-            :dok_hilang_gigi, :dok_masalah_leher, :dok_leher_pendek, :dok_batuk, :dok_sesak, :dok_infeksi_nafas, :dok_mens_abnormal, :dok_stroke,
-            :dok_sakit_dada, :dok_jantung_abnormal, :dok_muntah, :dok_susah_kencing, :dok_kejang, :dok_hamil, :dok_pingsan, :dok_obesitas,
-            :dok_keterangan,
-            :ku_kesadaran, :ku_visus, :ku_faring, :ku_gigi_palsu, :ku_keterangan,
-            :fisik_tinggi, :fisik_berat, :fisik_td, :fisik_nadi, :fisik_rr, :fisik_suhu,
-            :fisik_paru, :fisik_jantung, :fisik_abdomen, :fisik_ekstrimitas, :fisik_neurologi, :fisik_lain,
-            :lab_hb_ht, :lab_pt_aptt, :lab_kehamilan, :lab_kalium, :lab_ureum, :lab_keterangan,
-            :lab_rontgen, :lab_ekg, :lab_nacl, :lab_co2, :lab_lain,
-            :masalah, :asa, :saran,
-            :ane_umum, :au_iv, :au_sm, :au_lma, :au_ett,
-            :ane_reg, :ar_sab, :ar_epi, :ar_cse, :ar_pnb,
-            :ane_umum_reg,
-            :puasa_jam, :puasa_tgl,
-            :signature_image, :nama_dokter_ttd
-        )";
-
-        $stmt = $pdo->prepare($sql);
-
+        // --- MAPPING DATA (Disamakan dengan nama kolom DB) ---
         $params = [
             ':no_rm' => $_POST['no_rm'] ?? '',
             ':nama_pasien' => $_POST['nama_pasien'] ?? '',
@@ -204,18 +123,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ':steroid_ket' => $_POST['steroid_ket'] ?? '',
             ':alergi_obat' => $_POST['alergi_obat'] ?? '',
             ':alergi_obat_ket' => $_POST['alergi_obat_ket'] ?? '',
-            ':alergi_lateks' => $_POST['alt'] ?? '',
-            ':alergi_plester' => $_POST['alp'] ?? '',
-            ':alergi_makanan' => $_POST['alm'] ?? '',
-            ':rk_perdarahan_abnormal' => $_POST['rk_Perdarahanyangtidaknormal'] ?? '',
-            ':rk_pembekuan_abnormal' => $_POST['rk_Pembekuandarahtidaknormal'] ?? '',
-            ':rk_masalah_pembiusan' => $_POST['rk_Permasalahandalampembiusan'] ?? '',
-            ':rk_jantung_koroner' => $_POST['rk_Operasijantungkoroner'] ?? '',
-            ':rk_diabetes' => $_POST['rk_Diabetes'] ?? '',
-            ':rk_serangan_jantung' => $_POST['rk_Seranganjantung'] ?? '',
-            ':rk_hipertensi' => $_POST['rk_Hipertensi'] ?? '',
-            ':rk_tbc' => $_POST['rk_Tuberkulosis'] ?? '',
-            ':rk_penyakit_berat_lain' => $_POST['rk_Penyakitberatlainnya'] ?? '',
+            ':alergi_lateks' => $_POST['alergi_lateks'] ?? '',
+            ':alergi_plester' => $_POST['alergi_plester'] ?? '',
+            ':alergi_makanan' => $_POST['alergi_makanan'] ?? '',
+            ':rk_perdarahan_abnormal' => $_POST['rk_perdarahan_abnormal'] ?? '',
+            ':rk_pembekuan_abnormal' => $_POST['rk_pembekuan_abnormal'] ?? '',
+            ':rk_masalah_pembiusan' => $_POST['rk_masalah_pembiusan'] ?? '',
+            ':rk_jantung_koroner' => $_POST['rk_jantung_koroner'] ?? '',
+            ':rk_diabetes' => $_POST['rk_diabetes'] ?? '',
+            ':rk_serangan_jantung' => $_POST['rk_serangan_jantung'] ?? '',
+            ':rk_hipertensi' => $_POST['rk_hipertensi'] ?? '',
+            ':rk_tbc' => $_POST['rk_tbc'] ?? '',
+            ':rk_penyakit_berat_lain' => $_POST['rk_penyakit_berat_lain'] ?? '',
             ':rk_penjelasan_ya' => $_POST['rk_penjelasan_ya'] ?? '',
             ':bahasa_indo' => $_POST['bahasa_indo'] ?? '',
             ':bahasa_lain' => $_POST['bahasa_lain'] ?? '',
@@ -223,29 +142,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ':kom_mata' => $_POST['kom_mata'] ?? '',
             ':kom_telinga' => $_POST['kom_telinga'] ?? '',
             ':kom_bicara' => $_POST['kom_bicara'] ?? '',
-            ':rp_perdarahan_abnormal' => $_POST['rp_Perdarahantidaknormal'] ?? '',
-            ':rp_pembekuan_abnormal' => $_POST['rp_Pembekuandarahtidaknormal'] ?? '',
-            ':rp_maag' => $_POST['rp_Sakitmaag'] ?? '',
-            ':rp_anemia' => $_POST['rp_Anemia'] ?? '',
-            ':rp_sesak' => $_POST['rp_Sesaknapas'] ?? '',
-            ':rp_asma' => $_POST['rp_Asma'] ?? '',
-            ':rp_pingsan' => $_POST['rp_Pingsan'] ?? '',
-            ':rp_nyeri_dada' => $_POST['rp_Seranganjantung/Nyeridada'] ?? '',
-            ':rp_hepatitis' => $_POST['rp_Hepatitis/sakitkuning'] ?? '',
-            ':rp_hipertensi' => $_POST['rp_Hipertensi'] ?? '',
-            ':rp_ngorok' => $_POST['rp_SumbatanjalannafassaatTidur/Mengorok'] ?? '',
-            ':rp_penyakit_berat_lain' => $_POST['rp_Penyakitberatlainnya'] ?? '',
-            ':rp_diabetes' => $_POST['rp_Diabetes'] ?? '',
+            ':rp_perdarahan_abnormal' => $_POST['rp_perdarahan_abnormal'] ?? '',
+            ':rp_pembekuan_abnormal' => $_POST['rp_pembekuan_abnormal'] ?? '',
+            ':rp_maag' => $_POST['rp_maag'] ?? '',
+            ':rp_anemia' => $_POST['rp_anemia'] ?? '',
+            ':rp_sesak' => $_POST['rp_sesak'] ?? '',
+            ':rp_asma' => $_POST['rp_asma'] ?? '',
+            ':rp_pingsan' => $_POST['rp_pingsan'] ?? '',
+            ':rp_nyeri_dada' => $_POST['rp_nyeri_dada'] ?? '',
+            ':rp_hepatitis' => $_POST['rp_hepatitis'] ?? '',
+            ':rp_hipertensi' => $_POST['rp_hipertensi'] ?? '',
+            ':rp_ngorok' => $_POST['rp_ngorok'] ?? '',
+            ':rp_penyakit_berat_lain' => $_POST['rp_penyakit_berat_lain'] ?? '',
+            ':rp_diabetes' => $_POST['rp_diabetes'] ?? '',
             ':rp_penjelasan_ya' => $_POST['rp_penjelasan_ya'] ?? '',
             ':transfusi' => $_POST['transfusi'] ?? '',
             ':transfusi_tahun' => $_POST['transfusi_tahun'] ?? '',
             ':hiv_check' => $_POST['hiv_check'] ?? '',
             ':hiv_tahun' => $_POST['hiv_tahun'] ?? '',
             ':hiv_res' => $_POST['hiv_res'] ?? '',
-            ':lensa_kontak' => $_POST['lk'] ?? '',
-            ':kacamata' => $_POST['km'] ?? '',
-            ':alat_bantu_dengar' => $_POST['abd'] ?? '',
-            ':gigi_palsu' => $_POST['gp'] ?? '',
+            ':lensa_kontak' => $_POST['lensa_kontak'] ?? '',
+            ':kacamata' => $_POST['kacamata'] ?? '',
+            ':alat_bantu_dengar' => $_POST['alat_bantu_dengar'] ?? '',
+            ':gigi_palsu' => $_POST['gigi_palsu'] ?? '',
             ':op_lokal_ket' => $_POST['op_lokal_ket'] ?? '',
             ':op_regional_ket' => $_POST['op_regional_ket'] ?? '',
             ':op_umum_ket' => $_POST['op_umum_ket'] ?? '',
@@ -257,22 +176,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ':menstruasi' => $_POST['menstruasi'] ?? '',
             ':menyusui' => $_POST['menyusui'] ?? '',
             ':anamnesis' => $_POST['anamnesis'] ?? '',
-            ':dok_hilang_gigi' => $_POST['dok_Hilangnyagigi'] ?? '',
-            ':dok_masalah_leher' => $_POST['dok_Masalahmobilisasileher'] ?? '',
-            ':dok_leher_pendek' => $_POST['dok_Leherpendek'] ?? '',
-            ':dok_batuk' => $_POST['dok_Batuk'] ?? '',
-            ':dok_sesak' => $_POST['dok_Sesaknafas'] ?? '',
-            ':dok_infeksi_nafas' => $_POST['dok_Barusajamenderitainfeksisalurannafasatas'] ?? '',
-            ':dok_mens_abnormal' => $_POST['dok_Periodemenstruasitidaknormal'] ?? '',
-            ':dok_stroke' => $_POST['dok_Stroke'] ?? '',
-            ':dok_sakit_dada' => $_POST['dok_Sakitdada'] ?? '',
-            ':dok_jantung_abnormal' => $_POST['dok_Denyutjantungtidaknormal'] ?? '',
-            ':dok_muntah' => $_POST['dok_Muntah'] ?? '',
-            ':dok_susah_kencing' => $_POST['dok_Susahkencing'] ?? '',
-            ':dok_kejang' => $_POST['dok_Kejang'] ?? '',
-            ':dok_hamil' => $_POST['dok_Sedanghamil'] ?? '',
-            ':dok_pingsan' => $_POST['dok_Pingsan'] ?? '',
-            ':dok_obesitas' => $_POST['dok_Obesitas'] ?? '',
+            ':dok_hilang_gigi' => $_POST['dok_hilang_gigi'] ?? '',
+            ':dok_masalah_leher' => $_POST['dok_masalah_leher'] ?? '',
+            ':dok_leher_pendek' => $_POST['dok_leher_pendek'] ?? '',
+            ':dok_batuk' => $_POST['dok_batuk'] ?? '',
+            ':dok_sesak' => $_POST['dok_sesak'] ?? '',
+            ':dok_infeksi_nafas' => $_POST['dok_infeksi_nafas'] ?? '',
+            ':dok_mens_abnormal' => $_POST['dok_mens_abnormal'] ?? '',
+            ':dok_stroke' => $_POST['dok_stroke'] ?? '',
+            ':dok_sakit_dada' => $_POST['dok_sakit_dada'] ?? '',
+            ':dok_jantung_abnormal' => $_POST['dok_jantung_abnormal'] ?? '',
+            ':dok_muntah' => $_POST['dok_muntah'] ?? '',
+            ':dok_susah_kencing' => $_POST['dok_susah_kencing'] ?? '',
+            ':dok_kejang' => $_POST['dok_kejang'] ?? '',
+            ':dok_hamil' => $_POST['dok_hamil'] ?? '',
+            ':dok_pingsan' => $_POST['dok_pingsan'] ?? '',
+            ':dok_obesitas' => $_POST['dok_obesitas'] ?? '',
             ':dok_keterangan' => $_POST['dok_keterangan'] ?? '',
             ':ku_kesadaran' => $_POST['ku_kesadaran'] ?? '',
             ':ku_visus' => $_POST['ku_visus'] ?? '',
@@ -322,8 +241,122 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ':nama_dokter_ttd' => $_POST['nama_dokter_ttd'] ?? ''
         ];
 
+        // --- PENENTUAN: UPDATE ATAU INSERT? ---
+        $id_to_update = $_POST['data_id'] ?? ''; // Ambil ID dari hidden input
+
+        if (!empty($id_to_update)) {
+            // === UPDATE DATA ===
+            $sql = "UPDATE asesmen_pra_anestesi SET 
+                no_rm=:no_rm, nama_pasien=:nama_pasien, tgl_lahir=:tgl_lahir, jk_header=:jk_header, regno=:regno, ruangan=:ruangan, tgl_asesmen=:tgl_asesmen, jam_asesmen=:jam_asesmen,
+                umur=:umur, jk_penata=:jk_penata, menikah=:menikah, pekerjaan=:pekerjaan,
+                rokok=:rokok, rokok_jumlah=:rokok_jumlah, kopi=:kopi, kopi_jumlah=:kopi_jumlah, alkohol=:alkohol, alkohol_jumlah=:alkohol_jumlah, olahraga=:olahraga, olahraga_jumlah=:olahraga_jumlah,
+                obat_resep=:obat_resep, obat_bebas=:obat_bebas, obat_bebas_ket=:obat_bebas_ket, aspirin=:aspirin, aspirin_dosis=:aspirin_dosis, painkiller=:painkiller, painkiller_dosis=:painkiller_dosis,
+                steroid=:steroid, steroid_ket=:steroid_ket, alergi_obat=:alergi_obat, alergi_obat_ket=:alergi_obat_ket,
+                alergi_lateks=:alergi_lateks, alergi_plester=:alergi_plester, alergi_makanan=:alergi_makanan,
+                rk_perdarahan_abnormal=:rk_perdarahan_abnormal, rk_pembekuan_abnormal=:rk_pembekuan_abnormal, rk_masalah_pembiusan=:rk_masalah_pembiusan, rk_jantung_koroner=:rk_jantung_koroner, rk_diabetes=:rk_diabetes,
+                rk_serangan_jantung=:rk_serangan_jantung, rk_hipertensi=:rk_hipertensi, rk_tbc=:rk_tbc, rk_penyakit_berat_lain=:rk_penyakit_berat_lain, rk_penjelasan_ya=:rk_penjelasan_ya,
+                bahasa_indo=:bahasa_indo, bahasa_lain=:bahasa_lain, bahasa_lain_ket=:bahasa_lain_ket, kom_mata=:kom_mata, kom_telinga=:kom_telinga, kom_bicara=:kom_bicara,
+                rp_perdarahan_abnormal=:rp_perdarahan_abnormal, rp_pembekuan_abnormal=:rp_pembekuan_abnormal, rp_maag=:rp_maag, rp_anemia=:rp_anemia, rp_sesak=:rp_sesak, rp_asma=:rp_asma, rp_pingsan=:rp_pingsan,
+                rp_nyeri_dada=:rp_nyeri_dada, rp_hepatitis=:rp_hepatitis, rp_hipertensi=:rp_hipertensi, rp_ngorok=:rp_ngorok, rp_penyakit_berat_lain=:rp_penyakit_berat_lain, rp_diabetes=:rp_diabetes, rp_penjelasan_ya=:rp_penjelasan_ya,
+                transfusi=:transfusi, transfusi_tahun=:transfusi_tahun, hiv_check=:hiv_check, hiv_tahun=:hiv_tahun, hiv_res=:hiv_res,
+                lensa_kontak=:lensa_kontak, kacamata=:kacamata, alat_bantu_dengar=:alat_bantu_dengar, gigi_palsu=:gigi_palsu,
+                op_lokal_ket=:op_lokal_ket, op_regional_ket=:op_regional_ket, op_umum_ket=:op_umum_ket,
+                terakhir_periksa_tgl=:terakhir_periksa_tgl, terakhir_periksa_tempat=:terakhir_periksa_tempat, terakhir_periksa_penyakit=:terakhir_periksa_penyakit,
+                jml_hamil=:jml_hamil, jml_anak=:jml_anak, menstruasi=:menstruasi, menyusui=:menyusui,
+                anamnesis=:anamnesis,
+                dok_hilang_gigi=:dok_hilang_gigi, dok_masalah_leher=:dok_masalah_leher, dok_leher_pendek=:dok_leher_pendek, dok_batuk=:dok_batuk, dok_sesak=:dok_sesak, dok_infeksi_nafas=:dok_infeksi_nafas, dok_mens_abnormal=:dok_mens_abnormal, dok_stroke=:dok_stroke,
+                dok_sakit_dada=:dok_sakit_dada, dok_jantung_abnormal=:dok_jantung_abnormal, dok_muntah=:dok_muntah, dok_susah_kencing=:dok_susah_kencing, dok_kejang=:dok_kejang, dok_hamil=:dok_hamil, dok_pingsan=:dok_pingsan, dok_obesitas=:dok_obesitas,
+                dok_keterangan=:dok_keterangan,
+                ku_kesadaran=:ku_kesadaran, ku_visus=:ku_visus, ku_faring=:ku_faring, ku_gigi_palsu=:ku_gigi_palsu, ku_keterangan=:ku_keterangan,
+                fisik_tinggi=:fisik_tinggi, fisik_berat=:fisik_berat, fisik_td=:fisik_td, fisik_nadi=:fisik_nadi, fisik_rr=:fisik_rr, fisik_suhu=:fisik_suhu,
+                fisik_paru=:fisik_paru, fisik_jantung=:fisik_jantung, fisik_abdomen=:fisik_abdomen, fisik_ekstrimitas=:fisik_ekstrimitas, fisik_neurologi=:fisik_neurologi, fisik_lain=:fisik_lain,
+                lab_hb_ht=:lab_hb_ht, lab_pt_aptt=:lab_pt_aptt, lab_kehamilan=:lab_kehamilan, lab_kalium=:lab_kalium, lab_ureum=:lab_ureum, lab_keterangan=:lab_keterangan,
+                lab_rontgen=:lab_rontgen, lab_ekg=:lab_ekg, lab_nacl=:lab_nacl, lab_co2=:lab_co2, lab_lain=:lab_lain,
+                masalah=:masalah, asa=:asa, saran=:saran,
+                ane_umum=:ane_umum, au_iv=:au_iv, au_sm=:au_sm, au_lma=:au_lma, au_ett=:au_ett,
+                ane_reg=:ane_reg, ar_sab=:ar_sab, ar_epi=:ar_epi, ar_cse=:ar_cse, ar_pnb=:ar_pnb,
+                ane_umum_reg=:ane_umum_reg,
+                puasa_jam=:puasa_jam, puasa_tgl=:puasa_tgl,
+                signature_image=:signature_image, nama_dokter_ttd=:nama_dokter_ttd
+                WHERE id = :data_id";
+            
+            // Tambahkan parameter ID
+            $params[':data_id'] = $id_to_update;
+            $pesan_sukses = "Data Berhasil DI-UPDATE (Diperbarui).";
+
+        } else {
+            // === INSERT DATA BARU ===
+            $sql = "INSERT INTO asesmen_pra_anestesi (
+                no_rm, nama_pasien, tgl_lahir, jk_header, regno, ruangan, tgl_asesmen, jam_asesmen,
+                umur, jk_penata, menikah, pekerjaan,
+                rokok, rokok_jumlah, kopi, kopi_jumlah, alkohol, alkohol_jumlah, olahraga, olahraga_jumlah,
+                obat_resep, obat_bebas, obat_bebas_ket, aspirin, aspirin_dosis, painkiller, painkiller_dosis,
+                steroid, steroid_ket, alergi_obat, alergi_obat_ket,
+                alergi_lateks, alergi_plester, alergi_makanan,
+                rk_perdarahan_abnormal, rk_pembekuan_abnormal, rk_masalah_pembiusan, rk_jantung_koroner, rk_diabetes,
+                rk_serangan_jantung, rk_hipertensi, rk_tbc, rk_penyakit_berat_lain, rk_penjelasan_ya,
+                bahasa_indo, bahasa_lain, bahasa_lain_ket, kom_mata, kom_telinga, kom_bicara,
+                rp_perdarahan_abnormal, rp_pembekuan_abnormal, rp_maag, rp_anemia, rp_sesak, rp_asma, rp_pingsan,
+                rp_nyeri_dada, rp_hepatitis, rp_hipertensi, rp_ngorok, rp_penyakit_berat_lain, rp_diabetes, rp_penjelasan_ya,
+                transfusi, transfusi_tahun, hiv_check, hiv_tahun, hiv_res,
+                lensa_kontak, kacamata, alat_bantu_dengar, gigi_palsu,
+                op_lokal_ket, op_regional_ket, op_umum_ket,
+                terakhir_periksa_tgl, terakhir_periksa_tempat, terakhir_periksa_penyakit,
+                jml_hamil, jml_anak, menstruasi, menyusui,
+                anamnesis,
+                dok_hilang_gigi, dok_masalah_leher, dok_leher_pendek, dok_batuk, dok_sesak, dok_infeksi_nafas, dok_mens_abnormal, dok_stroke,
+                dok_sakit_dada, dok_jantung_abnormal, dok_muntah, dok_susah_kencing, dok_kejang, dok_hamil, dok_pingsan, dok_obesitas,
+                dok_keterangan,
+                ku_kesadaran, ku_visus, ku_faring, ku_gigi_palsu, ku_keterangan,
+                fisik_tinggi, fisik_berat, fisik_td, fisik_nadi, fisik_rr, fisik_suhu,
+                fisik_paru, fisik_jantung, fisik_abdomen, fisik_ekstrimitas, fisik_neurologi, fisik_lain,
+                lab_hb_ht, lab_pt_aptt, lab_kehamilan, lab_kalium, lab_ureum, lab_keterangan,
+                lab_rontgen, lab_ekg, lab_nacl, lab_co2, lab_lain,
+                masalah, asa, saran,
+                ane_umum, au_iv, au_sm, au_lma, au_ett,
+                ane_reg, ar_sab, ar_epi, ar_cse, ar_pnb,
+                ane_umum_reg,
+                puasa_jam, puasa_tgl,
+                signature_image, nama_dokter_ttd
+            ) VALUES (
+                :no_rm, :nama_pasien, :tgl_lahir, :jk_header, :regno, :ruangan, :tgl_asesmen, :jam_asesmen,
+                :umur, :jk_penata, :menikah, :pekerjaan,
+                :rokok, :rokok_jumlah, :kopi, :kopi_jumlah, :alkohol, :alkohol_jumlah, :olahraga, :olahraga_jumlah,
+                :obat_resep, :obat_bebas, :obat_bebas_ket, :aspirin, :aspirin_dosis, :painkiller, :painkiller_dosis,
+                :steroid, :steroid_ket, :alergi_obat, :alergi_obat_ket,
+                :alergi_lateks, :alergi_plester, :alergi_makanan,
+                :rk_perdarahan_abnormal, :rk_pembekuan_abnormal, :rk_masalah_pembiusan, :rk_jantung_koroner, :rk_diabetes,
+                :rk_serangan_jantung, :rk_hipertensi, :rk_tbc, :rk_penyakit_berat_lain, :rk_penjelasan_ya,
+                :bahasa_indo, :bahasa_lain, :bahasa_lain_ket, :kom_mata, :kom_telinga, :kom_bicara,
+                :rp_perdarahan_abnormal, :rp_pembekuan_abnormal, :rp_maag, :rp_anemia, :rp_sesak, :rp_asma, :rp_pingsan,
+                :rp_nyeri_dada, :rp_hepatitis, :rp_hipertensi, :rp_ngorok, :rp_penyakit_berat_lain, :rp_diabetes, :rp_penjelasan_ya,
+                :transfusi, :transfusi_tahun, :hiv_check, :hiv_tahun, :hiv_res,
+                :lensa_kontak, :kacamata, :alat_bantu_dengar, :gigi_palsu,
+                :op_lokal_ket, :op_regional_ket, :op_umum_ket,
+                :terakhir_periksa_tgl, :terakhir_periksa_tempat, :terakhir_periksa_penyakit,
+                :jml_hamil, :jml_anak, :menstruasi, :menyusui,
+                :anamnesis,
+                :dok_hilang_gigi, :dok_masalah_leher, :dok_leher_pendek, :dok_batuk, :dok_sesak, :dok_infeksi_nafas, :dok_mens_abnormal, :dok_stroke,
+                :dok_sakit_dada, :dok_jantung_abnormal, :dok_muntah, :dok_susah_kencing, :dok_kejang, :dok_hamil, :dok_pingsan, :dok_obesitas,
+                :dok_keterangan,
+                :ku_kesadaran, :ku_visus, :ku_faring, :ku_gigi_palsu, :ku_keterangan,
+                :fisik_tinggi, :fisik_berat, :fisik_td, :fisik_nadi, :fisik_rr, :fisik_suhu,
+                :fisik_paru, :fisik_jantung, :fisik_abdomen, :fisik_ekstrimitas, :fisik_neurologi, :fisik_lain,
+                :lab_hb_ht, :lab_pt_aptt, :lab_kehamilan, :lab_kalium, :lab_ureum, :lab_keterangan,
+                :lab_rontgen, :lab_ekg, :lab_nacl, :lab_co2, :lab_lain,
+                :masalah, :asa, :saran,
+                :ane_umum, :au_iv, :au_sm, :au_lma, :au_ett,
+                :ane_reg, :ar_sab, :ar_epi, :ar_cse, :ar_pnb,
+                :ane_umum_reg,
+                :puasa_jam, :puasa_tgl,
+                :signature_image, :nama_dokter_ttd
+            )";
+            $pesan_sukses = "Data Asesmen Pra Anestesi & Tanda Tangan berhasil DISIMPAN (Baru).";
+        }
+
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        $pesan_sukses = "Data Asesmen Pra Anestesi & Tanda Tangan berhasil disimpan ke Database.";
+
     } catch (PDOException $e) {
         $error_message = "Gagal menyimpan data: " . $e->getMessage();
     }
@@ -348,7 +381,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         body {
-            background-color: #525659;
             font-family: "Times New Roman", Times, serif;
             font-size: 11px;
             color: #000;
@@ -426,7 +458,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         table.dense-table td {
             padding: 0 2px;
-            /* Super compact padding */
             vertical-align: top;
         }
 
@@ -445,7 +476,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             position: relative;
             width: 100%;
             height: 70px;
-            /* Reduced height to save space */
             border: 2px dashed #999;
             background-color: #fcfcfc;
             margin-top: 2px;
@@ -463,7 +493,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             @page {
                 size: A4;
                 margin: 5mm;
-                /* Margin dikecilkan agar muat */
             }
 
             html,
@@ -507,7 +536,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 border-bottom: none;
             }
 
-            /* HILANGKAN BORDER TTD SAAT PRINT */
             .signature-wrapper {
                 border: none !important;
                 background: transparent !important;
@@ -526,10 +554,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 min-height: 40px;
             }
 
-            /* Tighten spacing specifically for print */
-            .mb-1,
-            .mb-2,
-            .mb-3 {
+            .mb-1, .mb-2, .mb-3 {
                 margin-bottom: 2px !important;
             }
         }
@@ -551,6 +576,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php endif; ?>
 
     <form method="POST" action="" id="medicalForm">
+        <input type="hidden" name="data_id" value="<?php echo htmlspecialchars($data_id); ?>">
 
         <div class="page-a4">
             <div class="header-green-bar" style="border-bottom: none;">
@@ -611,49 +637,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="d-flex justify-content-between mt-2 mb-2" style="font-size: 11px;">
                     <div>Umur: <input type="text" name="umur" value="<?php echo getValue('umur'); ?>" class="input-line" style="width: 40px;" required></div>
                     <div>Jenis Kelamin: <label><input type="radio" name="jk_penata" value="L" <?php echo getChecked('jk_penata', 'L'); ?>> L</label> <label class="ms-2"><input type="radio" name="jk_penata" value="P" <?php echo getChecked('jk_penata', 'P'); ?>> P</label></div>
-                    <div>Menikah: <label><input type="radio" name="menikah" value="Y" <?php echo getChecked('menikah', 'Y'); ?>> Y</label> <label class="ms-2"><input type="radio" name="menikah" value="T" <?php echo getChecked('menikah', 'T'); ?>> T</label></div>
+                    <div>Menikah: <label><input type="radio" name="menikah" value="1" <?php echo getChecked('menikah', '1'); ?>> Y</label> <label class="ms-2"><input type="radio" name="menikah" value="0" <?php echo getChecked('menikah', '0'); ?>> T</label></div>
                     <div>Pekerjaan: <input type="text" name="pekerjaan" value="<?php echo getValue('pekerjaan'); ?>" class="input-line" style="width: 120px;"></div>
                 </div>
 
                 <div class="section-title">KEBIASAAN</div>
                 <table class="dense-table mb-1">
                     <tr>
-                        <td width="50%">Merokok: <label><input type="radio" name="rokok" value="Y" <?php echo getChecked('rokok', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="rokok" value="T" <?php echo getChecked('rokok', 'T'); ?>> T</label> Sebanyak: <input type="text" name="rokok_jumlah" value="<?php echo getValue('rokok_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
-                        <td>Kopi/teh/soda: <label><input type="radio" name="kopi" value="Y" <?php echo getChecked('kopi', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="kopi" value="T" <?php echo getChecked('kopi', 'T'); ?>> T</label> Sebanyak: <input type="text" name="kopi_jumlah" value="<?php echo getValue('kopi_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
+                        <td width="50%">Merokok: <label><input type="radio" name="rokok" value="1" <?php echo getChecked('rokok', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="rokok" value="0" <?php echo getChecked('rokok', '0'); ?>> T</label> Sebanyak: <input type="text" name="rokok_jumlah" value="<?php echo getValue('rokok_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
+                        <td>Kopi/teh/soda: <label><input type="radio" name="kopi" value="1" <?php echo getChecked('kopi', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="kopi" value="0" <?php echo getChecked('kopi', '0'); ?>> T</label> Sebanyak: <input type="text" name="kopi_jumlah" value="<?php echo getValue('kopi_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
                     </tr>
                     <tr>
-                        <td>Alkohol: <label><input type="radio" name="alkohol" value="Y" <?php echo getChecked('alkohol', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="alkohol" value="T" <?php echo getChecked('alkohol', 'T'); ?>> T</label> Sebanyak: <input type="text" name="alkohol_jumlah" value="<?php echo getValue('alkohol_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
-                        <td>Olahraga rutin: <label><input type="radio" name="olahraga" value="Y" <?php echo getChecked('olahraga', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="olahraga" value="T" <?php echo getChecked('olahraga', 'T'); ?>> T</label> Sebanyak: <input type="text" name="olahraga_jumlah" value="<?php echo getValue('olahraga_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
+                        <td>Alkohol: <label><input type="radio" name="alkohol" value="1" <?php echo getChecked('alkohol', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="alkohol" value="0" <?php echo getChecked('alkohol', '0'); ?>> T</label> Sebanyak: <input type="text" name="alkohol_jumlah" value="<?php echo getValue('alkohol_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
+                        <td>Olahraga rutin: <label><input type="radio" name="olahraga" value="1" <?php echo getChecked('olahraga', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="olahraga" value="0" <?php echo getChecked('olahraga', '0'); ?>> T</label> Sebanyak: <input type="text" name="olahraga_jumlah" value="<?php echo getValue('olahraga_jumlah'); ?>" class="input-line" style="width: 80px;"></td>
                     </tr>
                 </table>
 
                 <div class="section-title" style="margin-bottom: 0;">PENGOBATAN: (Sebutkan dosis atau jumlah pil per hari)</div>
                 <div class="mb-1">
-                    <label class="me-4"><input type="checkbox" name="obat_resep" value="Y" <?php echo getChecked('obat_resep', 'Y'); ?>> Obat Resep</label>
-                    <label><input type="checkbox" name="obat_bebas" value="Y" <?php echo getChecked('obat_bebas', 'Y'); ?>> Obat bebas (vitamin, herbal): <input type="text" name="obat_bebas_ket" value="<?php echo getValue('obat_bebas_ket'); ?>" class="input-line" style="width: 200px;"></label>
+                    <label class="me-4"><input type="checkbox" name="obat_resep" value="1" <?php echo getChecked('obat_resep', '1'); ?>> Obat Resep</label>
+                    <label><input type="checkbox" name="obat_bebas" value="1" <?php echo getChecked('obat_bebas', '1'); ?>> Obat bebas (vitamin, herbal): <input type="text" name="obat_bebas_ket" value="<?php echo getValue('obat_bebas_ket'); ?>" class="input-line" style="width: 200px;"></label>
                 </div>
                 <table class="dense-table mb-1">
                     <tr>
                         <td width="200">Penggunaan Aspirin rutin</td>
-                        <td>: <label><input type="radio" name="aspirin" value="Y" <?php echo getChecked('aspirin', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="aspirin" value="T" <?php echo getChecked('aspirin', 'T'); ?>> T</label> Dosis dan frekuensi: <input type="text" name="aspirin_dosis" value="<?php echo getValue('aspirin_dosis'); ?>" class="input-line" style="width: 150px;"></td>
+                        <td>: <label><input type="radio" name="aspirin" value="1" <?php echo getChecked('aspirin', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="aspirin" value="0" <?php echo getChecked('aspirin', '0'); ?>> T</label> Dosis dan frekuensi: <input type="text" name="aspirin_dosis" value="<?php echo getValue('aspirin_dosis'); ?>" class="input-line" style="width: 150px;"></td>
                     </tr>
                     <tr>
                         <td>Obat anti sakit</td>
-                        <td>: <label><input type="radio" name="painkiller" value="Y" <?php echo getChecked('painkiller', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="painkiller" value="T" <?php echo getChecked('painkiller', 'T'); ?>> T</label> Dosis dan frekuensi: <input type="text" name="painkiller_dosis" value="<?php echo getValue('painkiller_dosis'); ?>" class="input-line" style="width: 150px;"></td>
+                        <td>: <label><input type="radio" name="painkiller" value="1" <?php echo getChecked('painkiller', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="painkiller" value="0" <?php echo getChecked('painkiller', '0'); ?>> T</label> Dosis dan frekuensi: <input type="text" name="painkiller_dosis" value="<?php echo getValue('painkiller_dosis'); ?>" class="input-line" style="width: 150px;"></td>
                     </tr>
                     <tr>
                         <td>Injeksi steroid tahun-tahun terakhir</td>
-                        <td>: <label><input type="radio" name="steroid" value="Y" <?php echo getChecked('steroid', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="steroid" value="T" <?php echo getChecked('steroid', 'T'); ?>> T</label> Tanggal dan lokasi injeksi: <input type="text" name="steroid_ket" value="<?php echo getValue('steroid_ket'); ?>" class="input-line" style="width: 150px;"></td>
+                        <td>: <label><input type="radio" name="steroid" value="1" <?php echo getChecked('steroid', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="steroid" value="0" <?php echo getChecked('steroid', '0'); ?>> T</label> Tanggal dan lokasi injeksi: <input type="text" name="steroid_ket" value="<?php echo getValue('steroid_ket'); ?>" class="input-line" style="width: 150px;"></td>
                     </tr>
                     <tr>
                         <td>Alergi obat</td>
-                        <td>: <label><input type="radio" name="alergi_obat" value="Y" <?php echo getChecked('alergi_obat', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="alergi_obat" value="T" <?php echo getChecked('alergi_obat', 'T'); ?>> T</label> Daftar obat dan tipe reaksi: <input type="text" name="alergi_obat_ket" value="<?php echo getValue('alergi_obat_ket'); ?>" class="input-line" style="width: 150px;"></td>
+                        <td>: <label><input type="radio" name="alergi_obat" value="1" <?php echo getChecked('alergi_obat', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="alergi_obat" value="0" <?php echo getChecked('alergi_obat', '0'); ?>> T</label> Daftar obat dan tipe reaksi: <input type="text" name="alergi_obat_ket" value="<?php echo getValue('alergi_obat_ket'); ?>" class="input-line" style="width: 150px;"></td>
                     </tr>
                 </table>
+                
                 <div class="mb-2">
-                    Alergi lateks: <label><input type="radio" name="alt" value="Y" <?php echo getChecked('alt', 'Y'); ?>> Y</label> <label class="yt-label me-4"><input type="radio" name="alt" value="T" <?php echo getChecked('alt', 'T'); ?>> T</label>
-                    Alergi plester: <label><input type="radio" name="alp" value="Y" <?php echo getChecked('alp', 'Y'); ?>> Y</label> <label class="yt-label me-4"><input type="radio" name="alp" value="T" <?php echo getChecked('alp', 'T'); ?>> T</label>
-                    Alergi makanan: <label><input type="radio" name="alm" value="Y" <?php echo getChecked('alm', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="alm" value="T" <?php echo getChecked('alm', 'T'); ?>> T</label>
+                    Alergi lateks: <label><input type="radio" name="alergi_lateks" value="1" <?php echo getChecked('alergi_lateks', '1'); ?>> Y</label> <label class="yt-label me-4"><input type="radio" name="alergi_lateks" value="0" <?php echo getChecked('alergi_lateks', '0'); ?>> T</label>
+                    Alergi plester: <label><input type="radio" name="alergi_plester" value="1" <?php echo getChecked('alergi_plester', '1'); ?>> Y</label> <label class="yt-label me-4"><input type="radio" name="alergi_plester" value="0" <?php echo getChecked('alergi_plester', '0'); ?>> T</label>
+                    Alergi makanan: <label><input type="radio" name="alergi_makanan" value="1" <?php echo getChecked('alergi_makanan', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="alergi_makanan" value="0" <?php echo getChecked('alergi_makanan', '0'); ?>> T</label>
                 </div>
 
                 <div class="section-title">RIWAYAT KELUARGA (Apakah keluarga mendapat permasalahan seperti di bawah ini):</div>
@@ -661,10 +688,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-6">
                         <table class="dense-table">
                             <?php
-                            $keluarga_kiri = ['Perdarahan yang tidak normal', 'Pembekuan darah tidak normal', 'Permasalahan dalam pembiusan', 'Operasi jantung koroner', 'Diabetes'];
-                            foreach ($keluarga_kiri as $k) {
-                                $name = 'rk_' . str_replace(' ', '', $k);
-                                echo "<tr><td>$k</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
+                            $keluarga_kiri = [
+                                'rk_perdarahan_abnormal' => 'Perdarahan yang tidak normal',
+                                'rk_pembekuan_abnormal' => 'Pembekuan darah tidak normal',
+                                'rk_masalah_pembiusan' => 'Permasalahan dalam pembiusan',
+                                'rk_jantung_koroner' => 'Operasi jantung koroner',
+                                'rk_diabetes' => 'Diabetes'
+                            ];
+                            foreach ($keluarga_kiri as $db_name => $label) {
+                                echo "<tr><td>$label</td><td>: <label><input type='radio' name='$db_name' value='1' " . getChecked($db_name, '1') . "> Y</label> <label><input type='radio' name='$db_name' value='0' " . getChecked($db_name, '0') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -672,10 +704,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-6">
                         <table class="dense-table ps-2">
                             <?php
-                            $keluarga_kanan = ['Serangan jantung', 'Hipertensi', 'Tuberkulosis', 'Penyakit berat lainnya'];
-                            foreach ($keluarga_kanan as $k) {
-                                $name = 'rk_' . str_replace(' ', '', $k);
-                                echo "<tr><td width='160'>$k</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
+                            $keluarga_kanan = [
+                                'rk_serangan_jantung' => 'Serangan jantung',
+                                'rk_hipertensi' => 'Hipertensi',
+                                'rk_tbc' => 'Tuberkulosis',
+                                'rk_penyakit_berat_lain' => 'Penyakit berat lainnya'
+                            ];
+                            foreach ($keluarga_kanan as $db_name => $label) {
+                                echo "<tr><td width='160'>$label</td><td>: <label><input type='radio' name='$db_name' value='1' " . getChecked($db_name, '1') . "> Y</label> <label><input type='radio' name='$db_name' value='0' " . getChecked($db_name, '0') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -691,15 +727,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <table class="dense-table mb-2">
                     <tr>
                         <td width="180">Gangguan Penglihatan/Buta</td>
-                        <td>: <label><input type="radio" name="kom_mata" value="Y" <?php echo getChecked('kom_mata', 'Y'); ?>> Y</label> <label><input type="radio" name="kom_mata" value="T" <?php echo getChecked('kom_mata', 'T'); ?>> T</label></td>
+                        <td>: <label><input type="radio" name="kom_mata" value="1" <?php echo getChecked('kom_mata', '1'); ?>> Y</label> <label><input type="radio" name="kom_mata" value="0" <?php echo getChecked('kom_mata', '0'); ?>> T</label></td>
                     </tr>
                     <tr>
                         <td>Gangguan Pendengaran/Tuli</td>
-                        <td>: <label><input type="radio" name="kom_telinga" value="Y" <?php echo getChecked('kom_telinga', 'Y'); ?>> Y</label> <label><input type="radio" name="kom_telinga" value="T" <?php echo getChecked('kom_telinga', 'T'); ?>> T</label></td>
+                        <td>: <label><input type="radio" name="kom_telinga" value="1" <?php echo getChecked('kom_telinga', '1'); ?>> Y</label> <label><input type="radio" name="kom_telinga" value="0" <?php echo getChecked('kom_telinga', '0'); ?>> T</label></td>
                     </tr>
                     <tr>
                         <td>Gangguan Bicara</td>
-                        <td>: <label><input type="radio" name="kom_bicara" value="Y" <?php echo getChecked('kom_bicara', 'Y'); ?>> Y</label> <label><input type="radio" name="kom_bicara" value="T" <?php echo getChecked('kom_bicara', 'T'); ?>> T</label></td>
+                        <td>: <label><input type="radio" name="kom_bicara" value="1" <?php echo getChecked('kom_bicara', '1'); ?>> Y</label> <label><input type="radio" name="kom_bicara" value="0" <?php echo getChecked('kom_bicara', '0'); ?>> T</label></td>
                     </tr>
                 </table>
 
@@ -708,10 +744,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-6">
                         <table class="dense-table">
                             <?php
-                            $pasien_kiri = ['Perdarahan tidak normal', 'Pembekuan darah tidak normal', 'Sakit maag', 'Anemia', 'Sesak napas', 'Asma', 'Pingsan'];
-                            foreach ($pasien_kiri as $p) {
-                                $name = 'rp_' . str_replace(' ', '', $p);
-                                echo "<tr><td>$p</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
+                            $pasien_kiri = [
+                                'rp_perdarahan_abnormal' => 'Perdarahan tidak normal',
+                                'rp_pembekuan_abnormal' => 'Pembekuan darah tidak normal',
+                                'rp_maag' => 'Sakit maag',
+                                'rp_anemia' => 'Anemia',
+                                'rp_sesak' => 'Sesak napas',
+                                'rp_asma' => 'Asma',
+                                'rp_pingsan' => 'Pingsan'
+                            ];
+                            foreach ($pasien_kiri as $db_name => $label) {
+                                echo "<tr><td>$label</td><td>: <label><input type='radio' name='$db_name' value='1' " . getChecked($db_name, '1') . "> Y</label> <label><input type='radio' name='$db_name' value='0' " . getChecked($db_name, '0') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -719,10 +762,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-6">
                         <table class="dense-table ps-2">
                             <?php
-                            $pasien_kanan = ['Serangan jantung/Nyeri dada', 'Hepatitis/sakit kuning', 'Hipertensi', 'Sumbatan jalan nafas saat Tidur/Mengorok', 'Penyakit berat lainnya', 'Diabetes'];
-                            foreach ($pasien_kanan as $p) {
-                                $name = 'rp_' . str_replace('/', '', str_replace(' ', '', $p));
-                                echo "<tr><td width='220'>$p</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
+                            $pasien_kanan = [
+                                'rp_nyeri_dada' => 'Serangan jantung/Nyeri dada',
+                                'rp_hepatitis' => 'Hepatitis/sakit kuning',
+                                'rp_hipertensi' => 'Hipertensi',
+                                'rp_ngorok' => 'Sumbatan jalan nafas saat Tidur/Mengorok',
+                                'rp_penyakit_berat_lain' => 'Penyakit berat lainnya',
+                                'rp_diabetes' => 'Diabetes'
+                            ];
+                            foreach ($pasien_kanan as $db_name => $label) {
+                                echo "<tr><td width='220'>$label</td><td>: <label><input type='radio' name='$db_name' value='1' " . getChecked($db_name, '1') . "> Y</label> <label><input type='radio' name='$db_name' value='0' " . getChecked($db_name, '0') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -733,11 +782,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <table class="dense-table mb-1">
                     <tr>
                         <td>Apakah pasien pernah mendapatkan transfusi darah?</td>
-                        <td><label><input type="radio" name="transfusi" value="Y" <?php echo getChecked('transfusi', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="transfusi" value="T" <?php echo getChecked('transfusi', 'T'); ?>> T</label> Bila ya, tahun berapa? <input type="text" name="transfusi_tahun" value="<?php echo getValue('transfusi_tahun'); ?>" class="input-line" style="width: 80px;"></td>
+                        <td><label><input type="radio" name="transfusi" value="1" <?php echo getChecked('transfusi', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="transfusi" value="0" <?php echo getChecked('transfusi', '0'); ?>> T</label> Bila ya, tahun berapa? <input type="text" name="transfusi_tahun" value="<?php echo getValue('transfusi_tahun'); ?>" class="input-line" style="width: 80px;"></td>
                     </tr>
                     <tr>
                         <td>Apakah pasien pernah diperiksa untuk diagnosis HIV?</td>
-                        <td><label><input type="radio" name="hiv_check" value="Y" <?php echo getChecked('hiv_check', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="hiv_check" value="T" <?php echo getChecked('hiv_check', 'T'); ?>> T</label> Bila ya, tahun berapa? <input type="text" name="hiv_tahun" value="<?php echo getValue('hiv_tahun'); ?>" class="input-line" style="width: 80px;"></td>
+                        <td><label><input type="radio" name="hiv_check" value="1" <?php echo getChecked('hiv_check', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="hiv_check" value="0" <?php echo getChecked('hiv_check', '0'); ?>> T</label> Bila ya, tahun berapa? <input type="text" name="hiv_tahun" value="<?php echo getValue('hiv_tahun'); ?>" class="input-line" style="width: 80px;"></td>
                     </tr>
                     <tr>
                         <td>Hasil pemeriksaan HIV :</td>
@@ -747,10 +796,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 <div class="mb-2">
                     Apakah pasien memakai ? <br>
-                    Lensa kontak : <label><input type="radio" name="lk" value="Y" <?php echo getChecked('lk', 'Y'); ?>> Y</label> <label class="yt-label me-3"><input type="radio" name="lk" value="T" <?php echo getChecked('lk', 'T'); ?>> T</label>
-                    Kacamata : <label><input type="radio" name="km" value="Y" <?php echo getChecked('km', 'Y'); ?>> Y</label> <label class="yt-label me-3"><input type="radio" name="km" value="T" <?php echo getChecked('km', 'T'); ?>> T</label>
-                    Alat bantu dengar : <label><input type="radio" name="abd" value="Y" <?php echo getChecked('abd', 'Y'); ?>> Y</label> <label class="yt-label me-3"><input type="radio" name="abd" value="T" <?php echo getChecked('abd', 'T'); ?>> T</label>
-                    Gigi palsu : <label><input type="radio" name="gp" value="Y" <?php echo getChecked('gp', 'Y'); ?>> Y</label> <label class="yt-label"><input type="radio" name="gp" value="T" <?php echo getChecked('gp', 'T'); ?>> T</label>
+                    Lensa kontak : <label><input type="radio" name="lensa_kontak" value="1" <?php echo getChecked('lensa_kontak', '1'); ?>> Y</label> <label class="yt-label me-3"><input type="radio" name="lensa_kontak" value="0" <?php echo getChecked('lensa_kontak', '0'); ?>> T</label>
+                    Kacamata : <label><input type="radio" name="kacamata" value="1" <?php echo getChecked('kacamata', '1'); ?>> Y</label> <label class="yt-label me-3"><input type="radio" name="kacamata" value="0" <?php echo getChecked('kacamata', '0'); ?>> T</label>
+                    Alat bantu dengar : <label><input type="radio" name="alat_bantu_dengar" value="1" <?php echo getChecked('alat_bantu_dengar', '1'); ?>> Y</label> <label class="yt-label me-3"><input type="radio" name="alat_bantu_dengar" value="0" <?php echo getChecked('alat_bantu_dengar', '0'); ?>> T</label>
+                    Gigi palsu : <label><input type="radio" name="gigi_palsu" value="1" <?php echo getChecked('gigi_palsu', '1'); ?>> Y</label> <label class="yt-label"><input type="radio" name="gigi_palsu" value="0" <?php echo getChecked('gigi_palsu', '0'); ?>> T</label>
                 </div>
 
                 <div class="section-title">Riwayat operasi, tahun dan jenis operasi:</div>
@@ -779,7 +828,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div>Jumlah kehamilan: <input type="text" name="jml_hamil" value="<?php echo getValue('jml_hamil'); ?>" class="input-line" style="width: 50px;"></div>
                     <div>Jumlah anak: <input type="text" name="jml_anak" value="<?php echo getValue('jml_anak'); ?>" class="input-line" style="width: 50px;"></div>
                     <div>Menstruasi: <input type="text" name="menstruasi" value="<?php echo getValue('menstruasi'); ?>" class="input-line" style="width: 100px;"></div>
-                    <div>Menyusui: <label><input type="radio" name="menyusui" value="Y" <?php echo getChecked('menyusui', 'Y'); ?>> Y</label> <label><input type="radio" name="menyusui" value="T" <?php echo getChecked('menyusui', 'T'); ?>> T</label></div>
+                    <div>Menyusui: <label><input type="radio" name="menyusui" value="1" <?php echo getChecked('menyusui', '1'); ?>> Y</label> <label><input type="radio" name="menyusui" value="0" <?php echo getChecked('menyusui', '0'); ?>> T</label></div>
                 </div>
             </div>
         </div>
@@ -802,10 +851,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-6">
                         <table class="dense-table">
                             <?php
-                            $dok_kiri = ['Hilangnya gigi', 'Masalah mobilisasi leher', 'Leher pendek', 'Batuk', 'Sesak nafas', 'Baru saja menderita infeksi saluran nafas atas', 'Periode menstruasi tidak normal', 'Stroke'];
-                            foreach ($dok_kiri as $d) {
-                                $name = 'dok_' . str_replace(' ', '', $d);
-                                echo "<tr><td width='180'>$d</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
+                            $dok_kiri = [
+                                'dok_hilang_gigi' => 'Hilangnya gigi',
+                                'dok_masalah_leher' => 'Masalah mobilisasi leher',
+                                'dok_leher_pendek' => 'Leher pendek',
+                                'dok_batuk' => 'Batuk',
+                                'dok_sesak' => 'Sesak nafas',
+                                'dok_infeksi_nafas' => 'Baru saja menderita infeksi saluran nafas atas',
+                                'dok_mens_abnormal' => 'Periode menstruasi tidak normal',
+                                'dok_stroke' => 'Stroke'
+                            ];
+                            foreach ($dok_kiri as $db_name => $label) {
+                                echo "<tr><td width='180'>$label</td><td>: <label><input type='radio' name='$db_name' value='1' " . getChecked($db_name, '1') . "> Y</label> <label><input type='radio' name='$db_name' value='0' " . getChecked($db_name, '0') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -813,10 +870,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-6">
                         <table class="dense-table ps-2">
                             <?php
-                            $dok_kanan = ['Sakit dada', 'Denyut jantung tidak normal', 'Muntah', 'Susah kencing', 'Kejang', 'Sedang hamil', 'Pingsan', 'Obesitas'];
-                            foreach ($dok_kanan as $d) {
-                                $name = 'dok_' . str_replace(' ', '', $d);
-                                echo "<tr><td width='160'>$d</td><td>: <label><input type='radio' name='$name' value='Y' " . getChecked($name, 'Y') . "> Y</label> <label><input type='radio' name='$name' value='T' " . getChecked($name, 'T') . "> T</label></td></tr>";
+                            $dok_kanan = [
+                                'dok_sakit_dada' => 'Sakit dada',
+                                'dok_jantung_abnormal' => 'Denyut jantung tidak normal',
+                                'dok_muntah' => 'Muntah',
+                                'dok_susah_kencing' => 'Susah kencing',
+                                'dok_kejang' => 'Kejang',
+                                'dok_hamil' => 'Sedang hamil',
+                                'dok_pingsan' => 'Pingsan',
+                                'dok_obesitas' => 'Obesitas'
+                            ];
+                            foreach ($dok_kanan as $db_name => $label) {
+                                echo "<tr><td width='160'>$label</td><td>: <label><input type='radio' name='$db_name' value='1' " . getChecked($db_name, '1') . "> Y</label> <label><input type='radio' name='$db_name' value='0' " . getChecked($db_name, '0') . "> T</label></td></tr>";
                             }
                             ?>
                         </table>
@@ -953,25 +1018,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="section-title">REKOMENDASI ANESTESI:</div>
                 <table class="dense-table mb-2 ps-2">
                     <tr>
-                        <td width="130"><label><input type="checkbox" name="ane_umum" value="Y" <?php echo getChecked('ane_umum', 'Y'); ?>> Anestesi Umum :</label></td>
+                        <td width="130"><label><input type="checkbox" name="ane_umum" value="1" <?php echo getChecked('ane_umum', '1'); ?>> Anestesi Umum :</label></td>
                         <td>
-                            <label class="me-3"><input type="checkbox" name="au_iv" value="Y" <?php echo getChecked('au_iv', 'Y'); ?>> Intravena</label>
-                            <label class="me-3"><input type="checkbox" name="au_sm" value="Y" <?php echo getChecked('au_sm', 'Y'); ?>> Sungkup Muka</label>
-                            <label class="me-3"><input type="checkbox" name="au_lma" value="Y" <?php echo getChecked('au_lma', 'Y'); ?>> LMA</label>
-                            <label><input type="checkbox" name="au_ett" value="Y" <?php echo getChecked('au_ett', 'Y'); ?>> ETT</label>
+                            <label class="me-3"><input type="checkbox" name="au_iv" value="1" <?php echo getChecked('au_iv', '1'); ?>> Intravena</label>
+                            <label class="me-3"><input type="checkbox" name="au_sm" value="1" <?php echo getChecked('au_sm', '1'); ?>> Sungkup Muka</label>
+                            <label class="me-3"><input type="checkbox" name="au_lma" value="1" <?php echo getChecked('au_lma', '1'); ?>> LMA</label>
+                            <label><input type="checkbox" name="au_ett" value="1" <?php echo getChecked('au_ett', '1'); ?>> ETT</label>
                         </td>
                     </tr>
                     <tr>
-                        <td><label><input type="checkbox" name="ane_reg" value="Y" <?php echo getChecked('ane_reg', 'Y'); ?>> Regional Anestesi :</label></td>
+                        <td><label><input type="checkbox" name="ane_reg" value="1" <?php echo getChecked('ane_reg', '1'); ?>> Regional Anestesi :</label></td>
                         <td>
-                            <label class="me-3"><input type="checkbox" name="ar_sab" value="Y" <?php echo getChecked('ar_sab', 'Y'); ?>> SAB</label>
-                            <label class="me-3"><input type="checkbox" name="ar_epi" value="Y" <?php echo getChecked('ar_epi', 'Y'); ?>> Epidural</label>
-                            <label class="me-3"><input type="checkbox" name="ar_cse" value="Y" <?php echo getChecked('ar_cse', 'Y'); ?>> CSE</label>
-                            <label><input type="checkbox" name="ar_pnb" value="Y" <?php echo getChecked('ar_pnb', 'Y'); ?>> PNB</label>
+                            <label class="me-3"><input type="checkbox" name="ar_sab" value="1" <?php echo getChecked('ar_sab', '1'); ?>> SAB</label>
+                            <label class="me-3"><input type="checkbox" name="ar_epi" value="1" <?php echo getChecked('ar_epi', '1'); ?>> Epidural</label>
+                            <label class="me-3"><input type="checkbox" name="ar_cse" value="1" <?php echo getChecked('ar_cse', '1'); ?>> CSE</label>
+                            <label><input type="checkbox" name="ar_pnb" value="1" <?php echo getChecked('ar_pnb', '1'); ?>> PNB</label>
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="2"><label><input type="checkbox" name="ane_umum_reg" value="Y" <?php echo getChecked('ane_umum_reg', 'Y'); ?>> Anestesi Umum + Regional Anestesi</label></td>
+                        <td colspan="2"><label><input type="checkbox" name="ane_umum_reg" value="1" <?php echo getChecked('ane_umum_reg', '1'); ?>> Anestesi Umum + Regional Anestesi</label></td>
                     </tr>
                 </table>
 
@@ -1014,9 +1079,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <button type="button" onclick="window.print()" class="btn btn-success btn-lg px-5 ms-2">
                 Cetak Formulir
             </button>
-            <?php if (!empty($pesan_sukses)): ?>
-                <button type="button" onclick="window.print()" class="btn btn-success btn-lg px-5 ms-2">Cetak Formulir</button>
-            <?php endif; ?>
         </div>
 
     </form>
@@ -1024,7 +1086,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             // --- SINKRONISASI JENIS KELAMIN ---
-            // Jika JK Header berubah -> JK Penata ikut berubah
             document.querySelectorAll('input[name="jk_header"]').forEach(radio => {
                 radio.addEventListener('change', function() {
                     const val = this.value;
@@ -1033,7 +1094,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 });
             });
 
-            // Jika JK Penata berubah -> JK Header ikut berubah
             document.querySelectorAll('input[name="jk_penata"]').forEach(radio => {
                 radio.addEventListener('change', function() {
                     const val = this.value;
@@ -1066,56 +1126,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 });
             }
 
-            // --- VALIDASI MANUAL SAAT SUBMIT ---
+            // --- VALIDASI MANUAL ---
             document.getElementById('medicalForm').addEventListener('submit', function(e) {
                 let isValid = true;
                 let firstInvalidInput = null;
-
-                // Ambil semua elemen yang punya atribut 'required'
                 const requiredInputs = this.querySelectorAll('[required]');
 
                 requiredInputs.forEach(input => {
-                    // Reset style error sebelumnya
-                    if (input.type === 'radio') {
-                        // Untuk radio button, kita cek parent/labelnya jika perlu, tapi fokus ke checked
-                        // Logic radio button sedikit beda, browser biasanya handle grouping
-                        // Kita biarkan browser handle radio check validity via checkValidity()
-                    } else {
-                        input.style.borderBottom = '1px dotted #000';
-                    }
-
-                    // Cek apakah valid
+                    if (input.type !== 'radio') input.style.borderBottom = '1px dotted #000';
                     if (!input.checkValidity()) {
                         isValid = false;
-
-                        // Beri highlight merah
-                        if (input.type !== 'radio') {
-                            input.style.borderBottom = '2px solid red';
-                        }
-
-                        // Simpan elemen pertama yang error untuk discroll
-                        if (!firstInvalidInput) {
-                            firstInvalidInput = input;
-                        }
+                        if (input.type !== 'radio') input.style.borderBottom = '2px solid red';
+                        if (!firstInvalidInput) firstInvalidInput = input;
                     }
                 });
 
                 if (!isValid) {
-                    e.preventDefault(); // Mencegah form terkirim
-
-                    // Tampilkan pesan peringatan keras
-                    alert("MOHON MAAF, DATA BELUM LENGKAP!\n\nSilakan isi semua kolom yang bergaris MERAH (Nama, No RM, Tgl Lahir, dll) sebelum menyimpan.");
-
-                    // Scroll ke input pertama yang kosong
+                    e.preventDefault();
+                    alert("MOHON MAAF, DATA BELUM LENGKAP!\n\nSilakan isi kolom bergaris MERAH.");
                     if (firstInvalidInput) {
-                        firstInvalidInput.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                        });
+                        firstInvalidInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         firstInvalidInput.focus();
                     }
                 } else {
-                    // Jika valid, proses tanda tangan sebelum kirim
                     if (signaturePad && !signaturePad.isEmpty()) {
                         document.getElementById('signature-image-input').value = signaturePad.toDataURL('image/png');
                     }
@@ -1128,7 +1161,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 textareas[i].setAttribute("style", "height:" + (textareas[i].scrollHeight) + "px;overflow-y:hidden;");
                 textareas[i].addEventListener("input", OnInput, false);
             }
-
             function OnInput() {
                 this.style.height = 0;
                 this.style.height = (this.scrollHeight) + "px";
