@@ -16,7 +16,7 @@ if ($conn->connect_error) {
 // Variabel Status Sedasi
 $no_rm = $nama = $tgl_lahir = $jk = $regno = "";
 $tgl_input = date('Y-m-d');
-$jam_input = date('H:i');
+$jam_input = date('');
 $ruangan = $tindakan = $diagnosa = "";
 $bb = $tb = $td = $nadi = $nafas = $spo2 = "";
 $iv_line_tempat = $iv_line_cairan = $lab = $rencana_mulai = $rencana_selesai = "";
